@@ -44,7 +44,16 @@ mount_point=$(df -h | grep $dvd_file_path | awk '{print $6}')
 if [ -z $mount_point ]; then
     echo "DVD is not mounted"
     echo "Mounting DVD"
-    mount_point="/media/dvd/$current_timestamp"
+    mount_point="/media/dvd"
+    # if something is already mounted at /media/dvd, then use /media/dvd1, /media/dvd2 etc.
+    # check if /media/dvd is already mounted
+    if [ -d $mount_point ]; then
+        echo "Mount point $mount_point exists"
+        i=0
+        while [ -d $mount_point ]; do
+            mount_point="/media/dvd$(($i+1))"
+        done
+    fi
     # check if mount point exists
     if [ -d $mount_point ]; then
         echo "Mount point $mount_point exists"
@@ -61,7 +70,7 @@ echo "DVD is mounted at $mount_point"
 ./venv/bin/python main.py --scan -i $dvd_file_path
 
 # rip dvd
-sudo ./venv/bin/python main.py -i $dvd_file_path -o ./outs/$current_timestamp
+./venv/bin/python main.py -v -i $dvd_file_path -o ./outs/$current_timestamp
 
 
 
