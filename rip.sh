@@ -47,13 +47,13 @@ if [ -z $mount_point ]; then
     mount_point="/media/dvd"
     # if something is already mounted at /media/dvd, then use /media/dvd1, /media/dvd2 etc.
     # check if /media/dvd is already mounted
-    if [ -d $mount_point ]; then
-        echo "Mount point $mount_point exists"
-        i=0
-        while [ -d $mount_point ]; do
-            mount_point="/media/dvd$(($i+1))"
-        done
-    fi
+    #if [ -d $mount_point ]; then
+        #echo "Mount point $mount_point exists"
+        #i=0
+        #while [ -d $mount_point ]; do
+        #    mount_point="/media/dvd$(($i+1))"
+        #done
+    #fi
     # check if mount point exists
     if [ -d $mount_point ]; then
         echo "Mount point $mount_point exists"
@@ -67,11 +67,18 @@ fi
 echo "DVD is mounted at $mount_point"
 
 # get disk info
-./venv/bin/python main.py --scan -i $dvd_file_path
+echo "Getting disk info"
+./venv/bin/python main.py --scan -i $dvd_file_path > ./outs/$current_timestamp.nfo
+echo "Disk info saved at ./outs/$current_timestamp.nfo"
 
 # rip dvd
+echo "Ripping DVD"
 ./venv/bin/python main.py -i $dvd_file_path -o ./outs/$current_timestamp
+echo "DVD ripped into ./outs/$current_timestamp"
 
+echo "Unmounting DVD"
+sudo umount $dvd_file_path
+echo "DVD unmounted"
 
-
-
+echo "DONE!"
+exit 0
