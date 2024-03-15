@@ -12,11 +12,15 @@ from collections import namedtuple
 from math import gcd
 from pprint import pprint
 
+
 class UserError(Exception):
     def __init__(self, message):
         self.message = message
 
+
 CHAR_ENCODING = 'UTF-8'
+ENCODE_ALGO = 'nvenc_h265'  # or x264
+
 
 def check_err(*popenargs, **kwargs):
     process = subprocess.Popen(stderr=subprocess.PIPE, *popenargs, **kwargs)
@@ -172,7 +176,7 @@ class DVD:
             HANDBRAKE,
             '--title', str(task.title.number),
             '--preset', "Production Standard",
-            '--encoder', 'x264',
+            '--encoder', ENCODE_ALGO,
             '--audio', ','.join(audio_tracks),
             '--aencoder', ','.join(audio_encoders),
         ]
@@ -516,8 +520,8 @@ def ParseArgs():
     return args
 
 
-
 NUM_RANGE_REGEX = re.compile(r'^(\d*)-(\d+)|(\d+)$')
+
 
 def parse_titles_arg(titles_arg):
     if titles_arg == '*':
