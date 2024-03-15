@@ -172,6 +172,7 @@ class DVD:
         audio_encoders = ['faac'] * len(audio_tracks)
         subtitles = task.title.info['subtitle tracks'].keys()
 
+        print(f"Using {ENCODE_ALGO} for encoding. (track: {task.title.number})")
         args = [
             HANDBRAKE,
             '--title', str(task.title.number),
