@@ -61,7 +61,7 @@ echo "DVD is mounted at $mount_point"
 ./venv/bin/python main.py --scan -i $dvd_file_path
 
 # rip dvd
-./venv/bin/python main.py -i $dvd_file_path -o ./outs/$current_timestamp
+sudo ./venv/bin/python main.py -i $dvd_file_path -o ./outs/$current_timestamp
 
 
 
