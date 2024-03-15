@@ -146,4 +146,4 @@ cython_debug/
 
 #.idea/
 .idea/sonarlint/**
-#/outs/**
+/outs/**
