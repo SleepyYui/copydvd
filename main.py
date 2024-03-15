@@ -275,11 +275,11 @@ class DVD:
                     "open %s: type CDAudio alias %s_drive" % (drive_letter, drive_letter), None, 0, None)
                 ctypes.windll.WINMM.mciSendStringW("set %s_drive door open" % drive_letter, None, 0, None)
             return
-
-        for i in range(TOTAL_EJECT_SECONDS * EJECT_ATTEMPTS_PER_SECOND):
+        return
+        """for i in range(TOTAL_EJECT_SECONDS * EJECT_ATTEMPTS_PER_SECOND):
             if not subprocess.call(['eject', self.mountpoint]):
                 return
-            time.sleep(1.0 / EJECT_ATTEMPTS_PER_SECOND)
+            time.sleep(1.0 / EJECT_ATTEMPTS_PER_SECOND)"""
 
 
 def ParseDuration(s):
