@@ -213,7 +213,24 @@ class DVD:
 
     def ScanTitles(self, title_numbers, verbose):
         first = title_numbers[0] if title_numbers else 1
-        raw_scan = tuple(self.ScanTitle(first))
+        try:
+            raw_scan = tuple(self.ScanTitle(first))
+        except subprocess.CalledProcessError:
+            retries = 0
+            print('Failed to scan title %d, trying other titles.' % first)
+            while True:
+                if retries >= 10:
+                    raise UserError('Failed to scan titles.')
+                try:
+                    first += 1
+                    raw_scan = tuple(self.ScanTitle(first))
+                    print('Scanned title %d successfully.' % first)
+                    break
+                except subprocess.CalledProcessError:
+                    print('Failed to scan title %d, trying other titles.' % first)
+                    retries += 1
+                    time.sleep(1)
+
         title_count = FindTitleCount(raw_scan, verbose)
         print('Disc claims to have %d titles.' % title_count)
         title_name, title_info = only(
