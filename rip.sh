@@ -4,6 +4,33 @@
 dvd_file_path=$1
 current_timestamp=$(date +%s)
 
+needed_packages="handbrake-cli python3 vlc"
+
+os_name=$(cat /etc/os-release | grep ID_LIKE | awk -F'=' '{print $2}' | tr -d '"')
+echo "OS name is $os_name"
+
+# check if distro is debian based
+if [ "$os_name" = "debian" ]; then
+    echo "Debian based distro"
+    # ask for confirmation
+    read -p "Install the following packages: $needed_packages? [y/n]: " confirm
+    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ] || [ "$confirm" = "yes" ]; then
+        #sudo apt update
+        sudo apt install -y $needed_packages
+    fi
+# else if arch based
+elif [ "$os_name" = "arch" ]; then
+    echo "Arch based distro"
+    # ask for confirmation
+    read -p "Install the following packages: $needed_packages? [y/n]: " confirm
+    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ] || [ "$confirm" = "yes" ]; then
+        #sudo pacman -Syu
+        sudo pacman -S --noconfirm $needed_packages
+    fi
+else
+    echo "Unsupported distro? Please install the following packages: $needed_packages"
+fi
+
 # if dvd file path is empty, search for dvdrom path
 if [ -z $dvd_file_path ]; then
     # drive is /dev/sr0 or /dev/sr1 or /dev/sr2 etc.
