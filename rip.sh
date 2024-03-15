@@ -61,7 +61,6 @@ if [ -z $mount_point ]; then
         echo "Creating mount point $mount_point"
         sudo mkdir -p $mount_point
     fi
-    sudo mkdir -p $mount_point
     sudo mount $dvd_file_path $mount_point
 fi
 echo "DVD is mounted at $mount_point"
