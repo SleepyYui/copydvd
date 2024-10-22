@@ -4,7 +4,7 @@
 dvd_file_path=$1
 current_timestamp=$(date +%s)
 
-needed_packages="handbrake-cli python3 vlc"
+needed_packages="handbrake-cli python3 vlc sshpass"
 
 os_name=$(cat /etc/os-release | grep ID_LIKE | awk -F'=' '{print $2}' | tr -d '"')
 echo "OS name is $os_name"
@@ -65,10 +65,12 @@ if [ -z $mount_point ]; then
 fi
 echo "DVD is mounted at $mount_point"
 
+read -p 'Movie Name: ' dname
+
 # get disk info
 echo "Getting disk info"
 ./venv/bin/python main.py --scan -i $dvd_file_path > ./outs/$current_timestamp.nfo
-echo "Disk info saved at ./outs/$current_timestamp.nfo"
+echo "Disk info saved at ./outs/$current_timestamp.nfo\nErrors above can be safely ignored"
 
 # rip dvd
 echo "Ripping DVD"
@@ -78,6 +80,33 @@ echo "DVD ripped into ./outs/$current_timestamp"
 echo "Unmounting DVD"
 sudo umount $dvd_file_path
 echo "DVD unmounted"
+
+
+servip=jellyfin.evgym.at
+serverpass="303wKabL-!"
+dnum=1
+
+echo "Renaming and copying files"
+for f in ./outs/1711117007/*
+do
+  if [ -f "$f" ]
+  then
+    echo "Processing $f"
+    mkdir --parents "./outs/$dname/"
+    mv -f "$f" "./outs/$dname/$dname - $dnum.mp4"
+    echo "Copying $f to $servip"
+    cd "./outs"
+    sshpass -p $serverpass rsync -aR "./$dname/$dname - $dnum.mp4" jellyfin@$servip:"/mrd/media/movies/"
+    cd ..
+    dnum=$((dnum+1))
+  else
+    echo "Warning: Some problem with \"$f\""
+  fi
+done
+
+
+
+
 
 echo "DONE!"
 exit 0
