@@ -82,8 +82,8 @@ sudo umount $dvd_file_path
 echo "DVD unmounted"
 
 
-servip=jellyfin.evgym.at
-serverpass="303wKabL-!"
+servip=
+serverpass=""
 dnum=1
 
 echo "Renaming and copying files"
