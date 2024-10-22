@@ -19,7 +19,7 @@ class UserError(Exception):
 
 
 CHAR_ENCODING = 'UTF-8'
-ENCODE_ALGO = 'nvenc_h265'  # or x264
+ENCODE_ALGO = 'x264'  # or x264
 
 
 def check_err(*popenargs, **kwargs):
