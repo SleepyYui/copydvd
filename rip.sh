@@ -4,109 +4,118 @@
 dvd_file_path=$1
 current_timestamp=$(date +%s)
 
-needed_packages="handbrake-cli python3 vlc sshpass"
+needed_packages="handbrake-cli python3 vlc sshpass rsync"
 
-os_name=$(cat /etc/os-release | grep ID_LIKE | awk -F'=' '{print $2}' | tr -d '"')
+# Detect OS more efficiently
+os_name=$(grep -Po '(?<=^ID_LIKE=).+' /etc/os-release | tr -d '"')
 echo "OS name is $os_name"
 
-# check if distro is debian based
-if [ "$os_name" = "debian" ]; then
-    echo "Debian based distro"
-    # ask for confirmation
-    read -p "Install the following packages: $needed_packages? [y/n]: " confirm
-    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ] || [ "$confirm" = "yes" ]; then
-        #sudo apt update
-        sudo apt install -y $needed_packages
+# Install packages based on distro
+if [[ "$os_name" == *"debian"* ]]; then
+    echo "Debian based distro detected"
+    read -p "Install required packages ($needed_packages)? [y/n]: " confirm
+    if [[ "$confirm" =~ ^[Yy](es)?$ ]]; then
+        sudo apt-get update -qq && sudo apt-get install -y $needed_packages
     fi
-# else if arch based
-elif [ "$os_name" = "arch" ]; then
-    echo "Arch based distro"
-    # ask for confirmation
-    read -p "Install the following packages: $needed_packages? [y/n]: " confirm
-    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ] || [ "$confirm" = "yes" ]; then
-        #sudo pacman -Syu
-        sudo pacman -S --noconfirm $needed_packages
+elif [[ "$os_name" == *"arch"* ]]; then
+    echo "Arch based distro detected"
+    read -p "Install required packages ($needed_packages)? [y/n]: " confirm
+    if [[ "$confirm" =~ ^[Yy](es)?$ ]]; then
+        sudo pacman -S --needed --noconfirm $needed_packages
     fi
 else
-    echo "Unsupported distro? Please install the following packages: $needed_packages"
+    echo "Unsupported distribution. Please manually install: $needed_packages"
 fi
 
-# if dvd file path is empty, search for dvdrom path
-if [ -z $dvd_file_path ]; then
-    # drive is /dev/sr0 or /dev/sr1 or /dev/sr2 etc.
-    dvd_file_path=$(lsblk -l | grep rom | awk '{print $1}')
-    dvd_file_path="/dev/$dvd_file_path"
-    echo "DVD file path is $dvd_file_path"
+# Auto-detect DVD path if not provided
+if [ -z "$dvd_file_path" ]; then
+    dvd_device=$(lsblk -ln -o NAME,TYPE | grep rom | awk '{print $1}' | head -1)
+    [ -n "$dvd_device" ] && dvd_file_path="/dev/$dvd_device"
+    echo "DVD file path detected: $dvd_file_path"
 fi
 
-# check if dvd is mounted
-mount_point=$(df -h | grep $dvd_file_path | awk '{print $6}')
-if [ -z $mount_point ]; then
-    echo "DVD is not mounted"
-    echo "Mounting DVD"
+# Check if valid path
+if [ ! -e "$dvd_file_path" ]; then
+    echo "Error: DVD path not found at $dvd_file_path"
+    exit 1
+fi
+
+# Mount DVD if needed
+mount_point=$(lsblk -no MOUNTPOINT "$dvd_file_path" | head -1)
+if [ -z "$mount_point" ]; then
+    echo "DVD is not mounted, mounting now..."
     mount_point="/media/dvd"
-    # if something is already mounted at /media/dvd, then use /media/dvd1, /media/dvd2 etc.
-    # check if /media/dvd is already mounted
-    #if [ -d $mount_point ]; then
-        #echo "Mount point $mount_point exists"
-        #i=0
-        #while [ -d $mount_point ]; do
-        #    mount_point="/media/dvd$(($i+1))"
-        #done
-    #fi
-    # check if mount point exists
-    if [ -d $mount_point ]; then
-        echo "Mount point $mount_point exists"
-    else
+
+    # Ensure mount point exists
+    if [ ! -d "$mount_point" ]; then
         echo "Creating mount point $mount_point"
-        sudo mkdir -p $mount_point
+        sudo mkdir -p "$mount_point"
     fi
-    sudo mount $dvd_file_path $mount_point
+    sudo mount "$dvd_file_path" "$mount_point" || { echo "Failed to mount DVD"; exit 1; }
 fi
 echo "DVD is mounted at $mount_point"
 
+# Get movie name
 read -p 'Movie Name: ' dname
 
-# get disk info
+# Create output directory
+output_dir="./outs/$dname"
+mkdir -p "$output_dir"
+
+# Get disk info
 echo "Getting disk info"
-./venv/bin/python main.py --scan -i $dvd_file_path > ./outs/$current_timestamp.nfo
-echo "Disk info saved at ./outs/$current_timestamp.nfo\nErrors above can be safely ignored"
+./venv/bin/python main.py --scan -i "$dvd_file_path" > "./outs/$current_timestamp.nfo" 2>/dev/null
+echo "Disk info saved at ./outs/$current_timestamp.nfo"
 
-# rip dvd
+# Rip DVD
 echo "Ripping DVD"
-./venv/bin/python main.py -i $dvd_file_path -o ./outs/$current_timestamp
-echo "DVD ripped into ./outs/$current_timestamp"
+rip_dir="./outs/$current_timestamp"
+./venv/bin/python main.py -i "$dvd_file_path" -o "$rip_dir"
+echo "DVD ripped into $rip_dir"
 
+# Unmount DVD
 echo "Unmounting DVD"
-sudo umount $dvd_file_path
-echo "DVD unmounted"
+sudo umount "$dvd_file_path" && echo "DVD unmounted successfully"
 
+# Server details
+read -p "Server IP: " servip
+read -sp "Server password: " serverpass
+echo ""  # New line after password input
 
-servip=
-serverpass=""
+# Check if server info is provided
+if [ -z "$servip" ]; then
+    echo "Warning: No server IP provided, skipping upload"
+    upload=false
+else
+    upload=true
+fi
+
+# Process files
+echo "Processing ripped files"
 dnum=1
+for f in "$rip_dir"/*; do
+    if [ -f "$f" ]; then
+        filename="$dname - $dnum.mp4"
+        target_path="$output_dir/$filename"
 
-echo "Renaming and copying files"
-for f in ./outs/1711117007/*
-do
-  if [ -f "$f" ]
-  then
-    echo "Processing $f"
-    mkdir --parents "./outs/$dname/"
-    mv -f "$f" "./outs/$dname/$dname - $dnum.mp4"
-    echo "Copying $f to $servip"
-    cd "./outs"
-    sshpass -p $serverpass rsync -aR "./$dname/$dname - $dnum.mp4" jellyfin@$servip:"/mrd/media/movies/"
-    cd ..
-    dnum=$((dnum+1))
-  else
-    echo "Warning: Some problem with \"$f\""
-  fi
+        echo "Processing: $f -> $target_path"
+        mv -f "$f" "$target_path"
+
+        # Upload file if server info available
+        if $upload; then
+            echo "Uploading $filename to $servip..."
+
+            # Using sshpass with rsync for efficient transfer
+            if sshpass -p "$serverpass" rsync -avz --progress "$target_path" "jellyfin@$servip:/mrd/media/movies/$dname/" 2>/dev/null; then
+                echo "Successfully uploaded $filename"
+            else
+                echo "Failed to upload $filename"
+            fi
+        fi
+
+        dnum=$((dnum+1))
+    fi
 done
-
-
-
-
 
 echo "DONE!"
 exit 0
