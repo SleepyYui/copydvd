@@ -1,0 +1,55 @@
+[package]
+name = "dvd_ripper"
+version = "0.1.0"
+edition = "2021"
+authors = ["DVD Ripper Team"]
+description = "A multi-threaded DVD ripping application with GUI and CLI support"
+
+[dependencies]
+# Core functionality
+tokio = { version = "1.28", features = ["full"] }
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+clap = { version = "4.3", features = ["derive"] }
+regex = "1.8"
+chrono = "0.4"
+directories = "5.0"
+
+# Filesystem
+walkdir = "2.3"
+tempfile = "3.6"
+
+# Process management
+which = "4.4"
+
+# GUI
+iced = { version = "0.9", features = ["tokio", "image", "canvas"] }
+iced_native = "0.10"
+iced_futures = "0.6"
+rfd = "0.11"
+
+# Platform-specific
+[target.'cfg(windows)'.dependencies]
+winreg = "0.51"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.26", features = ["mount", "fs"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc = "0.2"
+objc-foundation = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[[bin]]
+name = "dvd_ripper"
+path = "src/main.rs"
