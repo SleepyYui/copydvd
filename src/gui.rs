@@ -5,9 +5,8 @@ use iced::{
     Application, Command, Element, Settings, Theme,
     widget::{button, column, container, progress_bar, row, text, text_input, scrollable, Column, checkbox},
     executor, Length, Subscription, subscription, Color,
-    window, alignment,
+    window,
 };
-use iced::window::icon;
 use tracing::{info, warn};
 
 use crate::app::{AppState, AppStatus};

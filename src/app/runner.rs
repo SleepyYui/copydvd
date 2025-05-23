@@ -23,30 +23,24 @@ pub async fn run() -> Result<()> {
     // Parse CLI arguments
     let args = cli::parse_args();
 
-    // Determine if we should run in GUI mode
-    #[cfg(feature = "gui")]
-    let use_gui = !args.cli_mode; // Default to GUI unless --cli is specified
-    
-    #[cfg(not(feature = "gui"))]
-    let use_gui = false;
-
-    if use_gui {
-        // Run in GUI mode
+    if args.cli_mode {
+        // CLI mode was explicitly requested
+        info!("Starting in CLI mode (forced by --cli flag)");
+        run_cli(app_state, args).await?;
+    } else {
+        // CLI mode not explicitly requested, try GUI if feature is enabled
         #[cfg(feature = "gui")]
         {
-            info!("Starting in GUI mode");
+            info!("Starting in GUI mode (default)");
             gui::run(app_state).await?;
         }
         
         #[cfg(not(feature = "gui"))]
         {
-            // This shouldn't be reachable due to use_gui always being false when GUI is disabled
-            unreachable!("GUI feature is disabled");
+            // GUI feature not available, fall back to CLI
+            info!("Starting in CLI mode (GUI feature not enabled)");
+            run_cli(app_state, args).await?;
         }
-    } else {
-        // Run in CLI mode
-        info!("Starting in CLI mode");
-        run_cli(app_state, args).await?;
     }
 
     Ok(())
