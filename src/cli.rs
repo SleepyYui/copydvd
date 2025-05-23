@@ -5,8 +5,9 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[clap(
     name = "DVD Ripper",
-    about = "A multi-threaded DVD ripping application with GUI support",
-    version
+    about = "A multi-threaded DVD ripping application with CLI support and optional GUI",
+    version,
+    after_help = "Note: GUI mode is available as an optional feature but may have rendering issues on some macOS systems."
 )]
 pub struct Args {
     /// Path to DVD drive or directory
@@ -30,7 +31,7 @@ pub struct Args {
     pub chapter_split: Option<bool>,
     
     /// Number of simultaneous ripping threads
-    #[clap(short, long)]
+    #[clap(short = 'n', long)]
     pub threads: Option<usize>,
     
     /// Scan DVD and display title information
@@ -45,9 +46,9 @@ pub struct Args {
     #[clap(long, default_value = "x264")]
     pub encoder: String,
     
-    /// Start the GUI
-    #[clap(short, long)]
-    pub gui: bool,
+    /// Force CLI mode (no GUI)
+    #[clap(short = 'C', long = "cli", action = clap::ArgAction::SetTrue)]
+    pub cli_mode: bool, // Changed to bool, defaults to false
     
     /// Upload to server after ripping (requires server configuration)
     #[clap(long)]

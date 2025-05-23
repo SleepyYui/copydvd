@@ -37,8 +37,17 @@ pub enum AppError {
     #[error("GUI error: {0}")]
     GuiError(String),
 
+    #[error("User error: {0}")]
+    UserError(String),
+
     #[error("Unknown error: {0}")]
     Unknown(String),
+
+    #[error("HandBrakeCLI error: {0}")]
+    HandbrakeError(String),
+
+    #[error("DVD operation error: {0}")]
+    DvdError(String),
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;

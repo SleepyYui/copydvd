@@ -5,6 +5,10 @@ edition = "2021"
 authors = ["DVD Ripper Team"]
 description = "A multi-threaded DVD ripping application with GUI and CLI support"
 
+[features]
+default = ["gui"] # Changed: Added "gui" to default features
+gui = ["iced", "iced_native", "iced_futures", "rfd"]
+
 [dependencies]
 # Core functionality
 tokio = { version = "1.28", features = ["full"] }
@@ -18,6 +22,9 @@ clap = { version = "4.3", features = ["derive"] }
 regex = "1.8"
 chrono = "0.4"
 directories = "5.0"
+lazy_static = "1.4"
+num_cpus = "1.16"
+env_logger = "0.11.8"
 
 # Filesystem
 walkdir = "2.3"
@@ -26,11 +33,11 @@ tempfile = "3.6"
 # Process management
 which = "4.4"
 
-# GUI
-iced = { version = "0.9", features = ["tokio", "image", "canvas"] }
-iced_native = "0.10"
-iced_futures = "0.6"
-rfd = "0.11"
+# GUI (optional)
+iced = { version = "0.9", features = ["tokio", "image", "canvas"], optional = true }
+iced_native = { version = "0.10", optional = true }
+iced_futures = { version = "0.6", optional = true }
+rfd = { version = "0.11", optional = true }
 
 # Platform-specific
 [target.'cfg(windows)'.dependencies]

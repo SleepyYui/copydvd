@@ -1,8 +1,6 @@
 use std::path::{Path, PathBuf};
 use tokio::process::Command;
 use tracing::{info, warn};
-use tokio::fs::File;
-use tokio::io::AsyncReadExt;
 
 use crate::error::{AppError, Result};
 use crate::config::ServerConfig;
@@ -45,7 +43,7 @@ enum UploadMethod {
 }
 
 /// Determine the best upload method based on the OS and available tools
-fn determine_upload_method(server_config: &ServerConfig) -> UploadMethod {
+fn determine_upload_method(_server_config: &ServerConfig) -> UploadMethod {
     // Default to rsync if available, otherwise fall back to scp
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
@@ -111,23 +109,27 @@ async fn upload_with_scp(task: &UploadTask) -> Result<()> {
     let username = &task.server_config.username;
     let host = &task.server_config.host;
     
-    let remote_path = format!("{}@{}:{}", username, host, task.remote_path);
+    // Construct the SCP command
+    // Example: scp /path/to/local/file username@host:/path/to/remote/file
+    let remote_target = format!("{}@{}:\"{}\"", username, host, task.remote_path);
     
     // Use sshpass if password is provided
     let mut command = if !password.is_empty() {
         let mut cmd = Command::new("sshpass");
         cmd.arg("-p")
             .arg(password)
-            .arg("scp");
+            .arg("scp")
+            .arg("-r")
+            .arg(&task.local_path)
+            .arg(remote_target);
         cmd
     } else {
         let mut cmd = Command::new("scp");
+        cmd.arg("-r")
+           .arg(&task.local_path)
+           .arg(remote_target);
         cmd
     };
-    
-    // Add the local and remote paths
-    command.arg(&task.local_path)
-           .arg(remote_path);
     
     // Execute the command
     let output = command.output().await

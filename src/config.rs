@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::fs;
 use directories::ProjectDirs;
+use num_cpus;
 
 use crate::error::{AppError, Result};
 

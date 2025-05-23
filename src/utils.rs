@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::time::Duration;
 use tracing::info;
+use num_cpus;
 
 /// Format duration as hours:minutes:seconds
 pub fn format_duration(duration: Duration) -> String {

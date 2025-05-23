@@ -1,30 +1,25 @@
-use std::process;
-use tracing::{info, error};
-
 mod app;
-mod dvd;
-mod config;
-mod error;
-mod gui;
 mod cli;
-mod utils;
+mod config;
+mod dvd;
+mod error;
+#[cfg(feature = "gui")]
+mod gui;
 mod upload;
+mod utils;
 
-#[tokio::main]
-async fn main() {
+use tokio::runtime::Runtime;
+use crate::error::Result;
+
+fn main() -> Result<()> {
     // Initialize logging
-    tracing_subscriber::fmt::init();
-    info!("DVD Ripper starting up");
+    env_logger::init();
     
-    // Log system information
-    utils::log_system_info();
-
+    // Create a runtime for our async functions
+    let rt = Runtime::new()?;
+    
     // Run the application
-    match app::run().await {
-        Ok(_) => info!("DVD Ripper completed successfully"),
-        Err(e) => {
-            error!("DVD Ripper failed: {e}");
-            process::exit(1);
-        }
-    }
+    rt.block_on(async {
+        app::run().await
+    })
 }
