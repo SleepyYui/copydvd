@@ -7,7 +7,7 @@ description = "A multi-threaded DVD ripping application with GUI and CLI support
 
 [features]
 default = ["gui"] # Ensures 'gui' feature is active by default
-gui = ["iced", "iced_native", "iced_futures", "rfd"]
+gui = ["eframe", "egui", "egui_extras", "rfd"]
 
 [dependencies]
 # Core functionality
@@ -34,9 +34,9 @@ tempfile = "3.6"
 which = "4.4"
 
 # GUI (optional)
-iced = { version = "0.9", features = ["tokio", "image", "canvas"], optional = true }
-iced_native = { version = "0.10", optional = true }
-iced_futures = { version = "0.6", optional = true }
+eframe = { version = "0.28", optional = true }
+egui = { version = "0.28", optional = true }
+egui_extras = { version = "0.28", features = ["all_loaders"], optional = true }
 rfd = { version = "0.11", optional = true }
 
 # Platform-specific

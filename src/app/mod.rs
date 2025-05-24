@@ -1,6 +1,6 @@
-mod startup;
 pub mod runner;
+pub mod startup;
 mod state;
 
-pub use state::{AppState, AppStatus};
-pub use runner::run;
+pub use state::AppState;
+pub use state::AppStatus; // Export AppStatus so it's available to GUI

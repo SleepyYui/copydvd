@@ -72,10 +72,7 @@ impl Dvd {
         Err(AppError::HandbrakeError("Failed to parse HandBrakeCLI scan JSON output".to_string()))
     }
 
-    pub fn find_main_feature(&self) -> Option<&Title> {
-        // Heuristic: longest duration is often the main feature
-        self.titles.iter().max_by_key(|t| t.duration)
-    }
+
 }
 
 fn parse_handbrake_json_titles(title_list: &Vec<serde_json::Value>) -> Result<Vec<Title>> {

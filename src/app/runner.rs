@@ -28,11 +28,19 @@ pub async fn run() -> Result<()> {
         info!("Starting in CLI mode (forced by --cli flag)");
         run_cli(app_state, args).await?;
     } else {
-        // CLI mode not explicitly requested, try GUI if feature is enabled
+        // Try GUI mode first (now using egui instead of iced)
         #[cfg(feature = "gui")]
         {
-            info!("Starting in GUI mode (default)");
-            gui::run(app_state).await?;
+            info!("Starting in GUI mode (default - using egui)");
+            match gui::run(app_state.clone()) {
+                Ok(_) => {
+                    info!("GUI mode completed successfully");
+                }
+                Err(e) => {
+                    warn!("GUI failed to start ({}), falling back to CLI mode", e);
+                    run_cli(app_state, args).await?;
+                }
+            }
         }
         
         #[cfg(not(feature = "gui"))]

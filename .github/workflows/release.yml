@@ -1,0 +1,233 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ v2 ]
+  pull_request:
+    branches: [ v2 ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run tests
+        run: cargo test --all-features
+
+  build:
+    name: Build for ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    needs: test
+    strategy:
+      matrix:
+        include:
+          # Linux
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: dvd_ripper
+            asset_name: dvd_ripper-linux-x86_64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: dvd_ripper
+            asset_name: dvd_ripper-linux-aarch64
+          
+          # macOS
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact_name: dvd_ripper
+            asset_name: dvd_ripper-macos-x86_64
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact_name: dvd_ripper
+            asset_name: dvd_ripper-macos-aarch64
+          
+          # Windows
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            artifact_name: dvd_ripper.exe
+            asset_name: dvd_ripper-windows-x86_64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      
+      - name: Install dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev
+          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+          fi
+      
+      - name: Configure cross compilation
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
+          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
+      
+      - name: Build release
+        run: cargo build --release --target ${{ matrix.target }} --all-features
+      
+      - name: Strip binary (Unix)
+        if: matrix.os != 'windows-latest'
+        run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/v2' && github.event_name == 'push'
+    permissions:
+      contents: write
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      tag_name: ${{ steps.version.outputs.tag_name }}
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get version from Cargo.toml
+        id: version
+        run: |
+          VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=v$VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Check if tag exists
+        id: tag_check
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Get latest tag
+        id: latest_tag
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+      
+      - name: Generate changelog
+        id: changelog
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          if [[ -n "${{ steps.latest_tag.outputs.latest_tag }}" ]]; then
+            COMMITS=$(git log ${{ steps.latest_tag.outputs.latest_tag }}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          else
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          fi
+          
+          CHANGELOG="## What's Changed
+
+          $COMMITS
+
+          ## Build Information
+          - Built from commit: ${{ github.sha }}
+          - Branch: ${{ github.ref_name }}
+          - Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+
+          ## Supported Platforms
+          - Linux (x86_64, aarch64)
+          - macOS (Intel, Apple Silicon)
+          - Windows (x86_64)
+
+          ## Installation
+          Download the appropriate binary for your platform and make it executable (Linux/macOS):
+          \`\`\`bash
+          chmod +x dvd_ripper-*
+          \`\`\`
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.latest_tag.outputs.latest_tag }}...v${{ steps.version.outputs.version }}"
+          
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        id: create_release
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.tag_name }}
+          release_name: DVD Ripper ${{ steps.version.outputs.tag_name }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: false
+
+  upload-assets:
+    name: Upload Release Assets
+    runs-on: ubuntu-latest
+    needs: create-release
+    if: github.ref == 'refs/heads/v2' && github.event_name == 'push'
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        asset:
+          - name: dvd_ripper-linux-x86_64
+            target: x86_64-unknown-linux-gnu
+          - name: dvd_ripper-linux-aarch64
+            target: aarch64-unknown-linux-gnu
+          - name: dvd_ripper-macos-x86_64
+            target: x86_64-apple-darwin
+          - name: dvd_ripper-macos-aarch64
+            target: aarch64-apple-darwin
+          - name: dvd_ripper-windows-x86_64.exe
+            target: x86_64-pc-windows-msvc
+    
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.asset.name }}
+          path: ./
+      
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./${{ matrix.asset.name }}
+          asset_name: ${{ matrix.asset.name }}
+          asset_content_type: application/octet-stream
+
+  notify:
+    name: Notify Success
+    runs-on: ubuntu-latest
+    needs: [create-release, upload-assets]
+    if: github.ref == 'refs/heads/v2' && github.event_name == 'push' && success()
+    
+    steps:
+      - name: Success notification
+        run: |
+          echo "🎉 Release ${{ needs.create-release.outputs.tag_name }} created successfully!"
+          echo "📦 All platform binaries have been uploaded"
+          echo "🔗 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ needs.create-release.outputs.tag_name }}"

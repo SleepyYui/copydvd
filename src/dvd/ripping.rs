@@ -139,4 +139,11 @@ impl Dvd {
         }
         Ok(())
     }
+
+    pub fn find_main_feature(&self) -> Option<&Title> {
+        // Find the title with the longest duration (main feature)
+        self.titles
+            .iter()
+            .max_by_key(|title| title.duration)
+    }
 }

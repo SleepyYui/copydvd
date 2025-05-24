@@ -1,0 +1,64 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'  # Weekly on Monday
+  workflow_dispatch:
+
+jobs:
+  update-dependencies:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev
+      
+      - name: Install cargo-edit
+        run: cargo install cargo-edit
+      
+      - name: Update dependencies
+        run: |
+          cargo update
+          cargo upgrade --workspace
+      
+      - name: Test updated dependencies
+        run: |
+          cargo build --all-features
+          cargo test --all-features
+      
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update dependencies'
+          title: 'chore: automated dependency updates'
+          body: |
+            ## Automated Dependency Updates
+            
+            This PR contains automated updates to project dependencies.
+            
+            ### Changes
+            - Updated Cargo dependencies to latest compatible versions
+            - All tests pass with updated dependencies
+            
+            ### Verification
+            - [x] Build successful
+            - [x] Tests passing
+            - [x] All features compile
+            
+            **Note**: Please review the changes before merging.
+          branch: dependencies/automated-updates
+          delete-branch: true
