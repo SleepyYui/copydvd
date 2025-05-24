@@ -1,10 +1,10 @@
 use crate::error::{Result, AppError};
-use anyhow::{Context, Result as AnyhowResult};
+use anyhow::Context;
 use directories::ProjectDirs;
 use reqwest;
 use sha2::{Sha256, Digest};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 use tracing::{info, warn, debug};
 use zip::ZipArchive;
@@ -179,7 +179,7 @@ impl HandBrakeManager {
         ))
     }
 
-    async fn extract_from_dmg(&self, _dmg_bytes: &[u8], platform_info: &PlatformInfo) -> Result<()> {
+    async fn extract_from_dmg(&self, _dmg_bytes: &[u8], _platform_info: &PlatformInfo) -> Result<()> {
         // For macOS, we'll use a simpler approach: instruct users to install via Homebrew
         // or provide a more complex DMG extraction (which requires additional dependencies)
         warn!("DMG extraction not implemented. Falling back to system installation check.");

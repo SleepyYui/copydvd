@@ -31,6 +31,7 @@ pub struct Config {
     pub thread_count: usize,
     
     /// HandBrake management settings
+    #[serde(default)]
     pub handbrake_management: HandBrakeManagementConfig,
 }
 

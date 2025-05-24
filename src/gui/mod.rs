@@ -43,12 +43,20 @@ struct DvdRipperApp {
     titles: Vec<Title>,
     show_config_panel: bool,
     show_server_config: bool,
+    show_handbrake_config: bool,
     
     // Configuration fields
     handbrake_path: String,
     encode_algo: String,
     thread_count: String,
     eject_after_rip: bool,
+    
+    // HandBrake management configuration
+    auto_download: bool,
+    prefer_system: bool,
+    max_cache_size_mb: String,
+    verify_on_startup: bool,
+    cache_info: Option<(String, String)>, // (cache_dir, cache_size)
     
     // Server configuration
     server_host: String,
@@ -83,11 +91,18 @@ impl DvdRipperApp {
             titles: Vec::new(),
             show_config_panel: false,
             show_server_config: false,
+            show_handbrake_config: false,
             
             handbrake_path: config.handbrake_path.as_ref().map_or(String::new(), |p| p.to_string_lossy().to_string()),
             encode_algo: config.encode_algo,
             thread_count: config.thread_count.to_string(),
             eject_after_rip: config.eject_after_rip,
+            
+            auto_download: config.handbrake_management.auto_download,
+            prefer_system: config.handbrake_management.prefer_system,
+            max_cache_size_mb: config.handbrake_management.max_cache_size_mb.to_string(),
+            verify_on_startup: config.handbrake_management.verify_on_startup,
+            cache_info: None,
             
             server_host: config.server.as_ref().map(|s| s.host.clone()).unwrap_or_default(),
             server_username: config.server.as_ref().map(|s| s.username.clone()).unwrap_or_default(),
@@ -207,7 +222,7 @@ impl DvdRipperApp {
                 // Start ripping tasks
                 for (i, task) in tasks.iter().enumerate() {
                     let result = {
-                        let dvd = dvd_arc.lock().await;
+                        let mut dvd = dvd_arc.lock().await;
                         dvd.rip_title(task).await
                     };
                     
@@ -244,6 +259,53 @@ impl DvdRipperApp {
         }
     }
     
+    fn update_cache_info(&mut self) {
+        if let Ok(state) = self.app_state.try_lock() {
+            if let Some(dvd_arc) = &state.dvd {
+                if let Ok(dvd) = dvd_arc.try_lock() {
+                    match dvd.handbrake_manager.get_cache_info() {
+                        Ok((cache_dir, cache_size)) => {
+                            let size_mb = cache_size as f64 / (1024.0 * 1024.0);
+                            self.cache_info = Some((
+                                cache_dir.to_string_lossy().to_string(),
+                                format!("{:.2} MB", size_mb)
+                            ));
+                        }
+                        Err(_) => {
+                            self.cache_info = Some(("Unknown".to_string(), "Unknown".to_string()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn clear_handbrake_cache(&mut self) {
+        let result = if let Ok(state) = self.app_state.try_lock() {
+            if let Some(dvd_arc) = &state.dvd {
+                if let Ok(dvd) = dvd_arc.try_lock() {
+                    dvd.handbrake_manager.clear_cache()
+                } else {
+                    Err(crate::error::AppError::GuiError("DVD object locked".to_string()))
+                }
+            } else {
+                Err(crate::error::AppError::GuiError("No DVD object available".to_string()))
+            }
+        } else {
+            Err(crate::error::AppError::GuiError("App state locked".to_string()))
+        };
+
+        match result {
+            Ok(_) => {
+                self.status_message = "HandBrake cache cleared successfully".to_string();
+                self.update_cache_info();
+            }
+            Err(e) => {
+                self.error_message = format!("Failed to clear cache: {}", e);
+            }
+        }
+    }
+
     fn save_config(&mut self) {
         let app_state: Arc<Mutex<AppState>> = Arc::clone(&self.app_state);
         let handbrake_path = std::path::PathBuf::from(&self.handbrake_path);
@@ -264,6 +326,13 @@ impl DvdRipperApp {
             None
         };
         
+        let handbrake_management = crate::config::HandBrakeManagementConfig {
+            auto_download: self.auto_download,
+            prefer_system: self.prefer_system,
+            max_cache_size_mb: self.max_cache_size_mb.parse().unwrap_or(100),
+            verify_on_startup: self.verify_on_startup,
+        };
+        
         tokio::spawn(async move {
             let mut state = app_state.lock().await;
             state.config.handbrake_path = Some(handbrake_path);
@@ -273,6 +342,7 @@ impl DvdRipperApp {
             state.config.eject_after_rip = eject_after_rip;
             state.config.chapter_split = chapter_split;
             state.config.server = server_config;
+            state.config.handbrake_management = handbrake_management;
             
             // Save to file
             if let Err(e) = state.config.save() {
@@ -366,6 +436,13 @@ impl eframe::App for DvdRipperApp {
                 if ui.button("Server Settings").clicked() {
                     self.show_server_config = !self.show_server_config;
                 }
+                
+                if ui.button("HandBrake Settings").clicked() {
+                    self.show_handbrake_config = !self.show_handbrake_config;
+                    if self.show_handbrake_config {
+                        self.update_cache_info();
+                    }
+                }
             });
             
             // Configuration panel
@@ -429,6 +506,50 @@ impl eframe::App for DvdRipperApp {
                 if ui.button("Save Server Config").clicked() {
                     self.save_config();
                     self.show_server_config = false;
+                }
+            }
+            
+            // HandBrake configuration panel
+            if self.show_handbrake_config {
+                ui.separator();
+                ui.heading("HandBrake Management");
+                
+                ui.checkbox(&mut self.auto_download, "Auto-download HandBrakeCLI if not found");
+                ui.checkbox(&mut self.prefer_system, "Prefer system HandBrakeCLI over managed version");
+                ui.checkbox(&mut self.verify_on_startup, "Verify HandBrakeCLI on startup");
+                
+                ui.horizontal(|ui| {
+                    ui.label("Max cache size (MB):");
+                    ui.text_edit_singleline(&mut self.max_cache_size_mb);
+                    ui.label("(0 = unlimited)");
+                });
+                
+                ui.separator();
+                
+                // Cache information
+                ui.label("Cache Information:");
+                if let Some((cache_dir, cache_size)) = &self.cache_info {
+                    ui.label(format!("Cache directory: {}", cache_dir));
+                    ui.label(format!("Cache size: {}", cache_size));
+                } else {
+                    ui.label("Cache information not available");
+                }
+                
+                ui.horizontal(|ui| {
+                    if ui.button("Refresh Cache Info").clicked() {
+                        self.update_cache_info();
+                    }
+                    
+                    if ui.button("Clear Cache").clicked() {
+                        self.clear_handbrake_cache();
+                    }
+                });
+                
+                ui.separator();
+                
+                if ui.button("Save HandBrake Config").clicked() {
+                    self.save_config();
+                    self.show_handbrake_config = false;
                 }
             }
             
