@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Duration;
 use crate::config::Config;
+use crate::handbrake_manager::HandBrakeManager;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Title {
@@ -39,6 +40,7 @@ pub struct Dvd {
     pub path: PathBuf,
     pub titles: Vec<Title>,
     pub config: Config, // DVD-specific operations might need config
+    pub handbrake_manager: HandBrakeManager,
     // Add other fields like volume ID, disk label, etc.
 }
 

@@ -29,6 +29,9 @@ pub struct Config {
     
     /// Number of simultaneous ripping threads
     pub thread_count: usize,
+    
+    /// HandBrake management settings
+    pub handbrake_management: HandBrakeManagementConfig,
 }
 
 /// Server configuration for uploads
@@ -38,6 +41,22 @@ pub struct ServerConfig {
     pub username: String,
     pub password: Option<String>,
     pub path: String,
+}
+
+/// HandBrake management configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HandBrakeManagementConfig {
+    /// Whether to automatically download HandBrakeCLI if not found
+    pub auto_download: bool,
+    
+    /// Whether to prefer system HandBrakeCLI over managed version
+    pub prefer_system: bool,
+    
+    /// Maximum cache size in MB (0 = unlimited)
+    pub max_cache_size_mb: u64,
+    
+    /// Whether to verify HandBrakeCLI on startup
+    pub verify_on_startup: bool,
 }
 
 impl Default for Config {
@@ -54,6 +73,7 @@ impl Default for Config {
             server: None,
             eject_after_rip: true,
             thread_count: num_cpus::get().max(1),
+            handbrake_management: HandBrakeManagementConfig::default(),
         }
     }
 }
@@ -105,4 +125,15 @@ fn config_file_path() -> Result<PathBuf> {
     dirs_base_path()
         .map(|p| p.join("config.json"))
         .ok_or_else(|| AppError::ConfigError("Failed to determine config directory".to_string()))
+}
+
+impl Default for HandBrakeManagementConfig {
+    fn default() -> Self {
+        Self {
+            auto_download: true,
+            prefer_system: true,
+            max_cache_size_mb: 100,
+            verify_on_startup: true,
+        }
+    }
 }

@@ -9,9 +9,12 @@ impl Dvd {
     pub async fn scan_titles(&mut self) -> Result<()> {
         info!("Scanning titles for DVD at: {}", self.path.display());
 
-        let handbrake_path = self.config.handbrake_path.as_ref()
-            .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "HandBrakeCLI".to_string());
+        // Use HandBrake manager to get the binary path
+        let handbrake_path = if let Some(configured_path) = &self.config.handbrake_path {
+            configured_path.to_string_lossy().into_owned()
+        } else {
+            self.handbrake_manager.get_handbrake_path().await?.to_string_lossy().into_owned()
+        };
 
         let mut cmd = Command::new(&handbrake_path);
         cmd.arg("-i")
@@ -23,7 +26,7 @@ impl Dvd {
         cmd.stderr(Stdio::piped());
 
         let output = cmd.output().await
-            .map_err(|e| AppError::HandbrakeError(format!("Failed to execute HandBrakeCLI for scan: {}", e)))?;
+            .map_err(|e| AppError::HandbrakeError(format!("Failed to execute HandBrakeCLI for scan ({}): {}", handbrake_path, e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);

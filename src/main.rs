@@ -11,6 +11,7 @@ mod dvd;
 mod error;
 #[cfg(feature = "gui")]
 mod gui;
+mod handbrake_manager;
 mod upload;
 mod utils;
 

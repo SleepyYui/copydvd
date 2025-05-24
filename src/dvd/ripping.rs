@@ -6,14 +6,18 @@ use tracing::{info, warn};
 use crate::config::Config;
 use crate::dvd::types::{Dvd, RipTask, Title}; // Added Title import
 use crate::error::{Result, AppError};
+use crate::handbrake_manager::HandBrakeManager;
 
 impl Dvd {
     pub async fn new(path: PathBuf, config: Config) -> Result<Self> {
         // Optionally, verify path here using detection::verify_dvd_path(&path)?
+        let handbrake_manager = HandBrakeManager::new()?;
+        
         Ok(Dvd {
             path,
             titles: Vec::new(),
             config,
+            handbrake_manager,
         })
     }
 
@@ -45,18 +49,21 @@ impl Dvd {
         tasks
     }
 
-    pub async fn rip_title(&self, task: &RipTask) -> Result<()> {
+    pub async fn rip_title(&mut self, task: &RipTask) -> Result<()> {
         info!(
             "Ripping title {} to {}",
             task.title.number,
             task.output_path.display()
         );
 
-        let handbrake_path = self.config.handbrake_path.as_ref()
-            .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "HandBrakeCLI".to_string());
+        // Use HandBrake manager to get the binary path
+        let handbrake_path = if let Some(configured_path) = &self.config.handbrake_path {
+            configured_path.to_string_lossy().into_owned()
+        } else {
+            self.handbrake_manager.get_handbrake_path().await?.to_string_lossy().into_owned()
+        };
 
-        let mut cmd = Command::new(handbrake_path);
+        let mut cmd = Command::new(&handbrake_path);
         cmd.arg("-i")
             .arg(self.path.as_os_str())
             .arg("-t")
@@ -85,7 +92,7 @@ impl Dvd {
         cmd.stderr(Stdio::piped()); // Capture stderr for progress or errors
 
         let process = cmd.spawn()
-            .map_err(|e| AppError::HandbrakeError(format!("Failed to start HandBrakeCLI: {}", e)))?;
+            .map_err(|e| AppError::HandbrakeError(format!("Failed to start HandBrakeCLI ({}): {}", handbrake_path, e)))?;
         
         // You could use process.stdout and process.stderr to parse progress here
         // For now, just wait for completion.
