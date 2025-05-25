@@ -1,580 +1,428 @@
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use eframe::egui;
-use tracing::{info, warn};
+use crate::app::state::AppState;
+use crate::config::Config;
+use crate::gui::theme::{apply_modern_theme, ModernTheme, StyleConstants};
+use crate::gui::components::{render_tab_bar, tab_content_area, error_display};
+use crate::gui::state::{UiState, Tab};
+use crate::gui::tabs::*;
+use crate::gui::utils::{auto_check_for_updates, manual_check_for_updates};
+use std::sync::{Arc, Mutex};
+use egui::{Color32, Rounding, Stroke, Vec2, RichText, Align2, FontId};
 
-use crate::app::{AppState, AppStatus};
-use crate::error::{Result, AppError};
-use crate::dvd::types::Title;
+pub mod theme;
+pub mod components;
+pub mod tabs;
+pub mod utils;
+pub mod state;
 
-/// Run the GUI application using egui
-pub fn run(app_state: Arc<Mutex<AppState>>) -> Result<()> {
-    info!("Starting egui GUI");
-    
+/// Main entry point for the stunning modern GUI application
+pub fn run() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([800.0, 600.0])
-            .with_min_inner_size([640.0, 480.0])
-            .with_title("DVD Ripper"),
+            .with_inner_size([1100.0, 750.0])
+            .with_min_inner_size([900.0, 650.0])
+            .with_icon(load_icon())
+            .with_decorations(true)
+            .with_transparent(false),
         ..Default::default()
     };
 
-    let app = DvdRipperApp::new(app_state);
-    
     eframe::run_native(
-        "DVD Ripper",
+        "DVD Ripper - High-Tech Edition",
         options,
-        Box::new(|_cc| Ok(Box::new(app))),
-    ).map_err(|e| AppError::GuiError(format!("Failed to run GUI: {}", e)))?;
-    
-    Ok(())
+        Box::new(|cc| {
+            apply_modern_theme(&cc.egui_ctx);
+            Ok(Box::new(DvdRipperApp::new(cc)))
+        }),
+    )
 }
 
+fn load_icon() -> Arc<egui::IconData> {
+    Arc::new(egui::IconData {
+        rgba: vec![255; 32 * 32 * 4],
+        width: 32,
+        height: 32,
+    })
+}
+
+/// Main application with stunning high-tech interface
 struct DvdRipperApp {
     app_state: Arc<Mutex<AppState>>,
-    input_path: String,
-    output_path: String,
-    selected_titles: Vec<bool>,
-    main_feature_only: bool,
-    chapter_split: bool,
-    upload_to_server: bool,
-    status_message: String,
-    error_message: String,
-    titles: Vec<Title>,
-    show_config_panel: bool,
-    show_server_config: bool,
-    show_handbrake_config: bool,
-    
-    // Configuration fields
-    handbrake_path: String,
-    encode_algo: String,
-    thread_count: String,
-    eject_after_rip: bool,
-    
-    // HandBrake management configuration
-    auto_download: bool,
-    prefer_system: bool,
-    max_cache_size_mb: String,
-    verify_on_startup: bool,
-    cache_info: Option<(String, String)>, // (cache_dir, cache_size)
-    
-    // Server configuration
-    server_host: String,
-    server_username: String,
-    server_password: String,
-    server_path: String,
-    
-    // Runtime state - removed to avoid nested runtime issues
+    ui_state: UiState,
+    config: Arc<Mutex<Config>>,
+    first_frame: bool,
+    animation_time: f32,
 }
 
 impl DvdRipperApp {
-    fn new(app_state: Arc<Mutex<AppState>>) -> Self {
-        // Get initial configuration without blocking
-        let (config, status) = {
-            if let Ok(state) = app_state.try_lock() {
-                (state.config.clone(), state.status.clone())
-            } else {
-                (crate::config::Config::default(), AppStatus::Idle)
+    fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+        let config = match Config::load() {
+            Ok(config) => config,
+            Err(e) => {
+                eprintln!("Failed to load configuration: {}", e);
+                Config::default()
             }
         };
+        
+        let config = Arc::new(Mutex::new(config));
+        let app_state = Arc::new(Mutex::new(AppState::new(
+            config.lock().unwrap().clone()
+        )));
+        
+        let mut ui_state = UiState::new();
+        
+        if let Ok(config_ref) = config.try_lock() {
+            ui_state.load_config_temp(&*config_ref);
+        }
         
         Self {
             app_state,
-            input_path: String::new(),
-            output_path: config.output_dir.to_string_lossy().to_string(),
-            selected_titles: Vec::new(),
-            main_feature_only: false,
-            chapter_split: config.chapter_split,
-            upload_to_server: false,
-            status_message: format!("{:?}", status),
-            error_message: String::new(),
-            titles: Vec::new(),
-            show_config_panel: false,
-            show_server_config: false,
-            show_handbrake_config: false,
-            
-            handbrake_path: config.handbrake_path.as_ref().map_or(String::new(), |p| p.to_string_lossy().to_string()),
-            encode_algo: config.encode_algo,
-            thread_count: config.thread_count.to_string(),
-            eject_after_rip: config.eject_after_rip,
-            
-            auto_download: config.handbrake_management.auto_download,
-            prefer_system: config.handbrake_management.prefer_system,
-            max_cache_size_mb: config.handbrake_management.max_cache_size_mb.to_string(),
-            verify_on_startup: config.handbrake_management.verify_on_startup,
-            cache_info: None,
-            
-            server_host: config.server.as_ref().map(|s| s.host.clone()).unwrap_or_default(),
-            server_username: config.server.as_ref().map(|s| s.username.clone()).unwrap_or_default(),
-            server_password: config.server.as_ref().and_then(|s| s.password.clone()).unwrap_or_default(),
-            server_path: config.server.as_ref().map(|s| s.path.clone()).unwrap_or_default(),
+            ui_state,
+            config,
+            first_frame: true,
+            animation_time: 0.0,
         }
     }
     
-    fn update_status(&mut self) {
-        let status = if let Ok(state) = self.app_state.try_lock() {
-            state.status.clone()
-        } else {
-            return; // Skip update if can't get lock
-        };
-        
-        self.status_message = match status {
-            AppStatus::Idle => "Ready".to_string(),
-            AppStatus::Ready => "Ready to scan DVD".to_string(),
-            AppStatus::Scanning => "Scanning DVD...".to_string(),
-            AppStatus::ScanComplete(count) => format!("Scan complete - {} titles found", count),
-            AppStatus::Ripping { completed, total } => format!("Ripping: {}/{} completed", completed, total),
-            AppStatus::RipComplete => "Ripping complete".to_string(),
-            AppStatus::Uploading { progress } => format!("Uploading: {:.1}%", progress * 100.0),
-            AppStatus::UploadComplete => "Upload complete".to_string(),
-            AppStatus::Completed => "All operations completed".to_string(),
-            AppStatus::Error(ref msg) => {
-                self.error_message = msg.clone();
-                format!("Error: {}", msg)
-            }
-        };
-    }
-    
-    fn scan_dvd(&mut self) {
-        if self.input_path.is_empty() {
-            self.error_message = "Please select a DVD path first".to_string();
-            return;
-        }
-        
-        let input_path = std::path::PathBuf::from(&self.input_path);
-        let app_state: Arc<Mutex<AppState>> = Arc::clone(&self.app_state);
-        
-        tokio::spawn(async move {
-            let mut state = app_state.lock().await;
-            state.status = AppStatus::Scanning;
-            
-            // Create DVD object and scan
-            match crate::dvd::types::Dvd::new(input_path, state.config.clone()).await {
-                Ok(mut dvd) => {
-                    match dvd.scan_titles().await {
-                        Ok(_) => {
-                            let title_count = dvd.titles.len();
-                            state.status = AppStatus::ScanComplete(title_count);
-                            state.dvd = Some(Arc::new(Mutex::new(dvd)));
-                        }
-                        Err(e) => {
-                            state.status = AppStatus::Error(format!("Scan failed: {}", e));
-                        }
-                    }
+    fn update_status(&mut self, ctx: &egui::Context) {
+        if let Ok(state) = self.app_state.try_lock() {
+            match &state.status {
+                crate::app::state::AppStatus::Idle => {
+                    self.ui_state.set_status("System Ready".to_string());
                 }
-                Err(e) => {
-                    state.status = AppStatus::Error(format!("Failed to create DVD object: {}", e));
+                crate::app::state::AppStatus::Scanning => {
+                    self.ui_state.set_status("Scanning Media...".to_string());
                 }
-            }
-        });
-    }
-    
-    fn start_ripping(&mut self) {
-        if self.titles.is_empty() {
-            self.error_message = "Please scan DVD first".to_string();
-            return;
-        }
-        
-        let app_state: Arc<Mutex<AppState>> = Arc::clone(&self.app_state);
-        let output_path = std::path::PathBuf::from(&self.output_path);
-        let selected_titles: Vec<usize> = self.selected_titles
-            .iter()
-            .enumerate()
-            .filter_map(|(i, &selected)| if selected { Some(i + 1) } else { None })
-            .collect();
-        let main_feature = self.main_feature_only;
-        let chapter_split = self.chapter_split;
-        
-        tokio::spawn(async move {
-            let dvd_arc = {
-                let state = app_state.lock().await;
-                if let Some(dvd_arc) = &state.dvd {
-                    Arc::clone(dvd_arc)
-                } else {
-                    let mut state = app_state.lock().await;
-                    state.status = AppStatus::Error("No DVD scanned".to_string());
-                    return;
+                crate::app::state::AppStatus::ScanComplete(count) => {
+                    self.ui_state.set_status(format!("Found {} titles", count));
                 }
-            };
-            
-            let tasks = {
-                let dvd = dvd_arc.lock().await;
-                
-                let final_titles = if main_feature {
-                    dvd.find_main_feature().map(|title| vec![title.number])
-                } else if !selected_titles.is_empty() {
-                    Some(selected_titles)
-                } else {
-                    None
-                };
-                
-                dvd.create_rip_tasks(output_path, final_titles, chapter_split)
-            };
-            
-            let task_count = tasks.len();
-            if task_count > 0 {
-                {
-                    let mut state = app_state.lock().await;
-                    state.status = AppStatus::Ripping { completed: 0, total: task_count };
-                    state.rip_tasks = tasks.clone();
+                crate::app::state::AppStatus::Ripping { completed, total } => {
+                    self.ui_state.set_status(format!("Processing {} of {}", completed, total));
                 }
-                
-                // Start ripping tasks
-                for (i, task) in tasks.iter().enumerate() {
-                    let result = {
-                        let mut dvd = dvd_arc.lock().await;
-                        dvd.rip_title(task).await
-                    };
-                    
-                    let mut state = app_state.lock().await;
-                    match result {
-                        Ok(_) => {
-                            if let AppStatus::Ripping { completed, total } = &mut state.status {
-                                *completed += 1;
-                                if *completed >= *total {
-                                    state.status = AppStatus::RipComplete;
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            state.status = AppStatus::Error(format!("Rip task {} failed: {}", i + 1, e));
-                            break;
-                        }
-                    }
+                crate::app::state::AppStatus::RipComplete => {
+                    self.ui_state.set_status("Processing Complete".to_string());
                 }
-            } else {
-                let mut state = app_state.lock().await;
-                state.status = AppStatus::Error("No tasks created".to_string());
-            }
-        });
-    }
-    
-    fn browse_for_folder(&mut self, target: &str) {
-        if let Some(path) = rfd::FileDialog::new().pick_folder() {
-            match target {
-                "input" => self.input_path = path.to_string_lossy().to_string(),
-                "output" => self.output_path = path.to_string_lossy().to_string(),
+                crate::app::state::AppStatus::Uploading { progress } => {
+                    self.ui_state.set_status(format!("Uploading... {:.0}%", progress * 100.0));
+                }
+                crate::app::state::AppStatus::UploadComplete => {
+                    self.ui_state.set_status("Upload Complete".to_string());
+                }
+                crate::app::state::AppStatus::Completed => {
+                    self.ui_state.set_status("All Operations Complete".to_string());
+                }
+                crate::app::state::AppStatus::Error(err) => {
+                    self.ui_state.set_error(err.clone());
+                }
                 _ => {}
             }
-        }
-    }
-    
-    fn update_cache_info(&mut self) {
-        if let Ok(state) = self.app_state.try_lock() {
+            
             if let Some(dvd_arc) = &state.dvd {
                 if let Ok(dvd) = dvd_arc.try_lock() {
-                    match dvd.handbrake_manager.get_cache_info() {
-                        Ok((cache_dir, cache_size)) => {
-                            let size_mb = cache_size as f64 / (1024.0 * 1024.0);
-                            self.cache_info = Some((
-                                cache_dir.to_string_lossy().to_string(),
-                                format!("{:.2} MB", size_mb)
-                            ));
-                        }
-                        Err(_) => {
-                            self.cache_info = Some(("Unknown".to_string(), "Unknown".to_string()));
-                        }
+                    if self.ui_state.titles.len() != dvd.titles.len() {
+                        self.ui_state.update_titles(dvd.titles.clone());
                     }
                 }
             }
         }
+        
+        ctx.request_repaint_after(std::time::Duration::from_millis(16));
     }
-
-    fn clear_handbrake_cache(&mut self) {
-        let result = if let Ok(state) = self.app_state.try_lock() {
-            if let Some(dvd_arc) = &state.dvd {
-                if let Ok(dvd) = dvd_arc.try_lock() {
-                    dvd.handbrake_manager.clear_cache()
-                } else {
-                    Err(crate::error::AppError::GuiError("DVD object locked".to_string()))
-                }
-            } else {
-                Err(crate::error::AppError::GuiError("No DVD object available".to_string()))
-            }
-        } else {
-            Err(crate::error::AppError::GuiError("App state locked".to_string()))
-        };
-
-        match result {
-            Ok(_) => {
-                self.status_message = "HandBrake cache cleared successfully".to_string();
-                self.update_cache_info();
-            }
-            Err(e) => {
-                self.error_message = format!("Failed to clear cache: {}", e);
+    
+    fn handle_first_frame(&mut self) {
+        if self.first_frame {
+            self.first_frame = false;
+            
+            let ui_state_clone = self.ui_state.clone();
+            tokio::spawn(async move {
+                let mut ui_state = ui_state_clone;
+                auto_check_for_updates(&mut ui_state).await;
+            });
+        }
+    }
+    
+    fn save_all_configs(&mut self) {
+        if let Ok(mut config) = self.config.try_lock() {
+            self.update_config_from_ui(&mut config);
+            
+            if let Err(e) = config.save() {
+                self.ui_state.set_error(format!("Failed to save configuration: {}", e));
             }
         }
     }
-
-    fn save_config(&mut self) {
-        let app_state: Arc<Mutex<AppState>> = Arc::clone(&self.app_state);
-        let handbrake_path = std::path::PathBuf::from(&self.handbrake_path);
-        let output_dir = std::path::PathBuf::from(&self.output_path);
-        let encode_algo = self.encode_algo.clone();
-        let thread_count = self.thread_count.parse().unwrap_or(4);
-        let eject_after_rip = self.eject_after_rip;
-        let chapter_split = self.chapter_split;
+    
+    fn update_config_from_ui(&self, config: &mut Config) {
+        let temp = &self.ui_state.config_temp;
         
-        let server_config = if !self.server_host.is_empty() {
-            Some(crate::config::ServerConfig {
-                host: self.server_host.clone(),
-                username: self.server_username.clone(),
-                password: Some(self.server_password.clone()),
-                path: self.server_path.clone(),
-            })
+        if !temp.handbrake_path.is_empty() {
+            config.handbrake_path = Some(temp.handbrake_path.clone().into());
         } else {
-            None
-        };
+            config.handbrake_path = None;
+        }
         
-        let handbrake_management = crate::config::HandBrakeManagementConfig {
-            auto_download: self.auto_download,
-            prefer_system: self.prefer_system,
-            max_cache_size_mb: self.max_cache_size_mb.parse().unwrap_or(100),
-            verify_on_startup: self.verify_on_startup,
-        };
+        config.encode_algo = temp.encode_algo.clone();
+        config.eject_after_rip = temp.eject_after_rip;
         
-        tokio::spawn(async move {
-            let mut state = app_state.lock().await;
-            state.config.handbrake_path = Some(handbrake_path);
-            state.config.output_dir = output_dir;
-            state.config.encode_algo = encode_algo;
-            state.config.thread_count = thread_count;
-            state.config.eject_after_rip = eject_after_rip;
-            state.config.chapter_split = chapter_split;
-            state.config.server = server_config;
-            state.config.handbrake_management = handbrake_management;
-            
-            // Save to file
-            if let Err(e) = state.config.save() {
-                warn!("Failed to save configuration: {}", e);
-            }
+        if let Ok(thread_count) = temp.thread_count.parse::<usize>() {
+            config.thread_count = thread_count;
+        }
+        
+        if !self.ui_state.output_path.is_empty() {
+            config.output_dir = self.ui_state.output_path.clone().into();
+        }
+        
+        config.handbrake_management.auto_download = temp.auto_download;
+        config.handbrake_management.prefer_system = temp.prefer_system;
+        config.handbrake_management.verify_on_startup = temp.verify_on_startup;
+        
+        if let Ok(cache_size) = temp.max_cache_size_mb.parse::<u64>() {
+            config.handbrake_management.max_cache_size_mb = cache_size;
+        }
+        
+        if !temp.server_host.is_empty() && !temp.server_username.is_empty() {
+            config.server = Some(crate::config::ServerConfig {
+                host: temp.server_host.clone(),
+                username: temp.server_username.clone(),
+                password: if temp.server_password.is_empty() {
+                    None
+                } else {
+                    Some(temp.server_password.clone())
+                },
+                path: temp.server_path.clone(),
+            });
+        } else {
+            config.server = None;
+        }
+    }
+
+    /// Render stunning glassmorphism header with advanced effects
+    fn render_futuristic_header(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let header_height = StyleConstants::HEADER_HEIGHT + 20.0;
+        let header_rect = ui.allocate_space(Vec2::new(ui.available_width(), header_height)).1;
+        
+        // Animated gradient background
+        let gradient_offset = (self.animation_time * 0.5).sin() * 0.1 + 0.5;
+        let bg_color = Color32::from_rgba_premultiplied(
+            (12.0 + gradient_offset * 8.0) as u8,
+            (15.0 + gradient_offset * 10.0) as u8,
+            (23.0 + gradient_offset * 15.0) as u8,
+            240
+        );
+        
+        // Main header background with glassmorphism
+        ui.painter().rect_filled(
+            header_rect,
+            Rounding::same(StyleConstants::ROUNDING_XL),
+            bg_color,
+        );
+        
+        // Animated border with neon glow
+        let glow_intensity = (self.animation_time * 2.0).sin() * 0.3 + 0.7;
+        let border_color = Color32::from_rgba_premultiplied(
+            (0.0 + glow_intensity * 100.0) as u8,
+            (150.0 * glow_intensity) as u8,
+            255,
+            (120.0 * glow_intensity) as u8
+        );
+        
+        ui.painter().rect_stroke(
+            header_rect,
+            Rounding::same(StyleConstants::ROUNDING_XL),
+            Stroke::new(2.0, border_color),
+        );
+        
+        // Subtle inner glow
+        ui.painter().rect_stroke(
+            header_rect.shrink(1.0),
+            Rounding::same(StyleConstants::ROUNDING_XL - 1.0),
+            Stroke::new(1.0, Color32::from_rgba_premultiplied(255, 255, 255, 20)),
+        );
+        
+        // Header content
+        ui.allocate_ui_at_rect(header_rect.shrink(StyleConstants::SPACING_XL), |ui| {
+            ui.horizontal(|ui| {
+                // Left side - Logo and title
+                ui.vertical(|ui| {
+                    // Main title with neon effect
+                    ui.painter().text(
+                        ui.next_widget_position(),
+                        Align2::LEFT_TOP,
+                        "DVD RIPPER",
+                        FontId::proportional(28.0),
+                        ModernTheme::TEXT_BRIGHT,
+                    );
+                    
+                    // Subtitle with glow
+                    ui.add_space(StyleConstants::SPACING_SM);
+                    ui.painter().text(
+                        ui.next_widget_position(),
+                        Align2::LEFT_TOP,
+                        "High-Tech Media Processing Suite",
+                        FontId::proportional(14.0),
+                        ModernTheme::NEON_CYAN,
+                    );
+                });
+                
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // Right side - Status and system info
+                    ui.vertical(|ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Top), |ui| {
+                            // System status indicator
+                            if let Ok(state) = self.app_state.try_lock() {
+                                let (status_text, color, pulse) = match &state.status {
+                                    crate::app::state::AppStatus::Idle => ("STANDBY", ModernTheme::NEON_CYAN, false),
+                                    crate::app::state::AppStatus::Scanning => ("SCANNING", ModernTheme::NEON_BLUE, true),
+                                    crate::app::state::AppStatus::Ripping { .. } => ("PROCESSING", ModernTheme::NEON_PURPLE, true),
+                                    crate::app::state::AppStatus::Error(_) => ("ERROR", ModernTheme::ERROR, true),
+                                    _ => ("ACTIVE", ModernTheme::NEON_GREEN, false),
+                                };
+                                
+                                // Status dot with pulse animation
+                                let dot_alpha = if pulse {
+                                    ((self.animation_time * 4.0).sin() * 0.3 + 0.7) as u8
+                                } else {
+                                    255
+                                };
+                                
+                                let status_color = Color32::from_rgba_premultiplied(
+                                    color.r(),
+                                    color.g(),
+                                    color.b(),
+                                    dot_alpha
+                                );
+                                
+                                ui.horizontal(|ui| {
+                                    ui.painter().circle_filled(
+                                        ui.next_widget_position() + Vec2::new(6.0, 8.0),
+                                        6.0,
+                                        status_color
+                                    );
+                                    ui.add_space(16.0);
+                                    ui.colored_label(status_color, 
+                                        RichText::new(status_text)
+                                            .size(12.0)
+                                            .strong()
+                                    );
+                                });
+                            }
+                        });
+                        
+                        ui.add_space(StyleConstants::SPACING_SM);
+                        
+                        // Additional status info
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Top), |ui| {
+                            if !self.ui_state.titles.is_empty() {
+                                ui.colored_label(ModernTheme::TEXT_SECONDARY, 
+                                    format!("{} titles • {} selected", 
+                                        self.ui_state.titles.len(), 
+                                        self.ui_state.selected_title_count()
+                                    )
+                                );
+                            } else {
+                                ui.colored_label(ModernTheme::TEXT_MUTED, "Ready for media input");
+                            }
+                        });
+                    });
+                });
+            });
         });
+        
+        // Floating particles effect (subtle)
+        let particles = [
+            (0.2, 0.3, 3.0),
+            (0.7, 0.2, 2.0),
+            (0.9, 0.8, 2.5),
+            (0.1, 0.7, 1.5),
+        ];
+        
+        for (x_ratio, y_ratio, speed) in particles {
+            let particle_x = header_rect.min.x + header_rect.width() * x_ratio;
+            let particle_y = header_rect.min.y + header_rect.height() * y_ratio + 
+                (self.animation_time * speed).sin() * 5.0;
+            
+            let alpha = ((self.animation_time * speed + x_ratio * 10.0).sin() * 0.3 + 0.4) as u8;
+            ui.painter().circle_filled(
+                egui::pos2(particle_x, particle_y),
+                1.5,
+                Color32::from_rgba_premultiplied(100, 200, 255, alpha * 40 / 255)
+            );
+        }
     }
 }
 
 impl eframe::App for DvdRipperApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Update status from background tasks
-        self.update_status();
+        // Update animation time
+        self.animation_time += ctx.input(|i| i.unstable_dt);
         
-        // Update titles if available
-        if let Ok(state) = self.app_state.try_lock() {
-            if let Some(dvd_arc) = &state.dvd {
-                if let Ok(dvd) = dvd_arc.try_lock() {
-                    if self.titles.len() != dvd.titles.len() {
-                        self.titles = dvd.titles.clone();
-                        self.selected_titles = vec![false; self.titles.len()];
+        self.handle_first_frame();
+        self.update_status(ctx);
+        
+        // Main application window with stunning effects
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(ModernTheme::BACKGROUND_MAIN))
+            .show(ctx, |ui| {
+                // Stunning glassmorphism header
+                self.render_futuristic_header(ui, ctx);
+                
+                ui.add_space(StyleConstants::SPACING_XL);
+                
+                // Enhanced tab navigation
+                render_tab_bar(ui, &mut self.ui_state.active_tab);
+                
+                // Main content with enhanced styling
+                tab_content_area(ui, |ui| {
+                    error_display(ui, &mut self.ui_state.error_message);
+                    
+                    match self.ui_state.active_tab {
+                        Tab::Main => {
+                            render_main_tab(ui, &mut self.ui_state, self.app_state.clone());
+                        }
+                        Tab::Config => {
+                            render_config_tab(ui, &mut self.ui_state, self.config.clone());
+                        }
+                        Tab::Server => {
+                            render_server_tab(ui, &mut self.ui_state, self.config.clone());
+                        }
+                        Tab::HandBrake => {
+                            render_handbrake_tab(ui, &mut self.ui_state, self.config.clone());
+                        }
+                        Tab::About => {
+                            render_about_tab(ui, &mut self.ui_state);
+                        }
                     }
-                }
+                });
+            });
+        
+        // Enhanced keyboard shortcuts
+        if ctx.input(|i| i.key_pressed(egui::Key::F5)) {
+            if self.ui_state.active_tab == Tab::Main {
+                // TODO: Trigger DVD scan
             }
         }
         
-        // Request repaint for status updates
-        ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        if ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::S)) {
+            self.save_all_configs();
+        }
         
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("DVD Ripper");
-            
-            // Error message display
-            if !self.error_message.is_empty() {
-                ui.colored_label(egui::Color32::RED, &self.error_message);
-                if ui.button("Dismiss").clicked() {
-                    self.error_message.clear();
-                }
-                ui.separator();
-            }
-            
-            // Status display
-            ui.label(format!("Status: {}", self.status_message));
-            ui.separator();
-            
-            // Input/Output paths
-            ui.horizontal(|ui| {
-                ui.label("DVD Path:");
-                ui.text_edit_singleline(&mut self.input_path);
-                if ui.button("Browse").clicked() {
-                    self.browse_for_folder("input");
-                }
+        if ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::U)) {
+            let ui_state_clone = self.ui_state.clone();
+            tokio::spawn(async move {
+                let mut ui_state = ui_state_clone;
+                manual_check_for_updates(&mut ui_state).await;
             });
-            
-            ui.horizontal(|ui| {
-                ui.label("Output Path:");
-                ui.text_edit_singleline(&mut self.output_path);
-                if ui.button("Browse").clicked() {
-                    self.browse_for_folder("output");
-                }
-            });
-            
-            ui.separator();
-            
-            // Scan and action buttons
-            ui.horizontal(|ui| {
-                if ui.button("Scan DVD").clicked() {
-                    self.scan_dvd();
-                }
-                
-                if ui.button("Start Ripping").clicked() {
-                    self.start_ripping();
-                }
-            });
-            
-            ui.separator();
-            
-            // Options
-            ui.checkbox(&mut self.main_feature_only, "Main feature only");
-            ui.checkbox(&mut self.chapter_split, "Split chapters");
-            ui.checkbox(&mut self.upload_to_server, "Upload to server");
-            
-            ui.separator();
-            
-            // Configuration panels
-            ui.horizontal(|ui| {
-                if ui.button("Configuration").clicked() {
-                    self.show_config_panel = !self.show_config_panel;
-                }
-                
-                if ui.button("Server Settings").clicked() {
-                    self.show_server_config = !self.show_server_config;
-                }
-                
-                if ui.button("HandBrake Settings").clicked() {
-                    self.show_handbrake_config = !self.show_handbrake_config;
-                    if self.show_handbrake_config {
-                        self.update_cache_info();
-                    }
-                }
-            });
-            
-            // Configuration panel
-            if self.show_config_panel {
-                ui.separator();
-                ui.heading("Configuration");
-                
-                ui.horizontal(|ui| {
-                    ui.label("HandBrake Path:");
-                    ui.text_edit_singleline(&mut self.handbrake_path);
-                });
-                
-                ui.horizontal(|ui| {
-                    ui.label("Encode Algorithm:");
-                    egui::ComboBox::from_label("")
-                        .selected_text(&self.encode_algo)
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut self.encode_algo, "x264".to_string(), "x264");
-                            ui.selectable_value(&mut self.encode_algo, "x265".to_string(), "x265");
-                        });
-                });
-                
-                ui.horizontal(|ui| {
-                    ui.label("Thread Count:");
-                    ui.text_edit_singleline(&mut self.thread_count);
-                });
-                
-                ui.checkbox(&mut self.eject_after_rip, "Eject after ripping");
-                
-                if ui.button("Save Configuration").clicked() {
-                    self.save_config();
-                    self.show_config_panel = false;
-                }
+        }
+        
+        // Tab switching shortcuts (Ctrl+1-5)
+        for (i, tab) in Tab::all().iter().enumerate() {
+            if ctx.input(|input| {
+                input.modifiers.ctrl && input.key_pressed(egui::Key::from_name(&(i + 1).to_string()).unwrap_or(egui::Key::Num1))
+            }) {
+                self.ui_state.active_tab = *tab;
             }
-            
-            // Server configuration panel
-            if self.show_server_config {
-                ui.separator();
-                ui.heading("Server Configuration");
-                
-                ui.horizontal(|ui| {
-                    ui.label("Host:");
-                    ui.text_edit_singleline(&mut self.server_host);
-                });
-                
-                ui.horizontal(|ui| {
-                    ui.label("Username:");
-                    ui.text_edit_singleline(&mut self.server_username);
-                });
-                
-                ui.horizontal(|ui| {
-                    ui.label("Password:");
-                    ui.add(egui::TextEdit::singleline(&mut self.server_password).password(true));
-                });
-                
-                ui.horizontal(|ui| {
-                    ui.label("Remote Path:");
-                    ui.text_edit_singleline(&mut self.server_path);
-                });
-                
-                if ui.button("Save Server Config").clicked() {
-                    self.save_config();
-                    self.show_server_config = false;
-                }
-            }
-            
-            // HandBrake configuration panel
-            if self.show_handbrake_config {
-                ui.separator();
-                ui.heading("HandBrake Management");
-                
-                ui.checkbox(&mut self.auto_download, "Auto-download HandBrakeCLI if not found");
-                ui.checkbox(&mut self.prefer_system, "Prefer system HandBrakeCLI over managed version");
-                ui.checkbox(&mut self.verify_on_startup, "Verify HandBrakeCLI on startup");
-                
-                ui.horizontal(|ui| {
-                    ui.label("Max cache size (MB):");
-                    ui.text_edit_singleline(&mut self.max_cache_size_mb);
-                    ui.label("(0 = unlimited)");
-                });
-                
-                ui.separator();
-                
-                // Cache information
-                ui.label("Cache Information:");
-                if let Some((cache_dir, cache_size)) = &self.cache_info {
-                    ui.label(format!("Cache directory: {}", cache_dir));
-                    ui.label(format!("Cache size: {}", cache_size));
-                } else {
-                    ui.label("Cache information not available");
-                }
-                
-                ui.horizontal(|ui| {
-                    if ui.button("Refresh Cache Info").clicked() {
-                        self.update_cache_info();
-                    }
-                    
-                    if ui.button("Clear Cache").clicked() {
-                        self.clear_handbrake_cache();
-                    }
-                });
-                
-                ui.separator();
-                
-                if ui.button("Save HandBrake Config").clicked() {
-                    self.save_config();
-                    self.show_handbrake_config = false;
-                }
-            }
-            
-            // Title selection
-            if !self.titles.is_empty() {
-                ui.separator();
-                ui.heading("DVD Titles");
-                
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    for (i, title) in self.titles.iter().enumerate() {
-                        ui.horizontal(|ui| {
-                            if i < self.selected_titles.len() {
-                                ui.checkbox(&mut self.selected_titles[i], "");
-                            }
-                            ui.label(format!(
-                                "Title {}: {} ({} chapters, {:.1} min)",
-                                title.number,
-                                title.description.as_ref().unwrap_or(&"Unknown".to_string()),
-                                title.chapters.len(),
-                                title.duration.as_secs() as f64 / 60.0
-                            ));
-                        });
-                    }
-                });
-            }
-        });
+        }
+    }
+    
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.save_all_configs();
     }
 }

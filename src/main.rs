@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .init();
-    
+
     // Set environment variables to work around font rendering issues on macOS
     #[cfg(target_os = "macos")]
     {
@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
         // Enable backtrace for better debugging
         env::set_var("RUST_BACKTRACE", "1");
     }
-    
+
     // Set environment variables to work around font rendering issues
     if env::var("DVDRIPPER_FONT_FIX").is_ok() {
         info!("Font fix environment variable detected, applying additional workarounds");

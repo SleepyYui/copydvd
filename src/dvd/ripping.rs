@@ -5,14 +5,14 @@ use tracing::{info, warn};
 
 use crate::config::Config;
 use crate::dvd::types::{Dvd, RipTask, Title}; // Added Title import
-use crate::error::{Result, AppError};
+use crate::error::{AppError, Result};
 use crate::handbrake_manager::HandBrakeManager;
 
 impl Dvd {
     pub async fn new(path: PathBuf, config: Config) -> Result<Self> {
         // Optionally, verify path here using detection::verify_dvd_path(&path)?
         let handbrake_manager = HandBrakeManager::new()?;
-        
+
         Ok(Dvd {
             path,
             titles: Vec::new(),
@@ -60,7 +60,11 @@ impl Dvd {
         let handbrake_path = if let Some(configured_path) = &self.config.handbrake_path {
             configured_path.to_string_lossy().into_owned()
         } else {
-            self.handbrake_manager.get_handbrake_path().await?.to_string_lossy().into_owned()
+            self.handbrake_manager
+                .get_handbrake_path()
+                .await?
+                .to_string_lossy()
+                .into_owned()
         };
 
         let mut cmd = Command::new(&handbrake_path);
@@ -71,7 +75,7 @@ impl Dvd {
             .arg("-o")
             .arg(task.output_path.as_os_str())
             .arg("--preset") // Example: use a default preset
-            .arg("Fast 1080p30") 
+            .arg("Fast 1080p30")
             .arg("-e")
             .arg(&self.config.encode_algo) // x264, x265
             .arg("-q") // Quality setting
@@ -84,25 +88,33 @@ impl Dvd {
             // A more complex implementation would iterate task.title.chapters and rip ranges.
             warn!("Chapter splitting requested but not fully implemented in this basic rip_title function.");
         }
-        
+
         // Add more HandBrakeCLI options based on self.config as needed
         // e.g., audio tracks, subtitles, quality, encoder options
 
         cmd.stdout(Stdio::piped()); // Capture stdout
         cmd.stderr(Stdio::piped()); // Capture stderr for progress or errors
 
-        let process = cmd.spawn()
-            .map_err(|e| AppError::HandbrakeError(format!("Failed to start HandBrakeCLI ({}): {}", handbrake_path, e)))?;
-        
+        let process = cmd.spawn().map_err(|e| {
+            AppError::HandbrakeError(format!(
+                "Failed to start HandBrakeCLI ({}): {}",
+                handbrake_path, e
+            ))
+        })?;
+
         // You could use process.stdout and process.stderr to parse progress here
         // For now, just wait for completion.
 
-        let output = process.wait_with_output().await
-            .map_err(|e| AppError::HandbrakeError(format!("HandBrakeCLI execution failed: {}", e)))?;
+        let output = process.wait_with_output().await.map_err(|e| {
+            AppError::HandbrakeError(format!("HandBrakeCLI execution failed: {}", e))
+        })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            warn!("HandBrakeCLI error for title {}: {}", task.title.number, stderr);
+            warn!(
+                "HandBrakeCLI error for title {}: {}",
+                task.title.number, stderr
+            );
             return Err(AppError::HandbrakeError(format!(
                 "HandBrakeCLI failed for title {} with status {}: {}",
                 task.title.number, output.status, stderr
@@ -149,8 +161,6 @@ impl Dvd {
 
     pub fn find_main_feature(&self) -> Option<&Title> {
         // Find the title with the longest duration (main feature)
-        self.titles
-            .iter()
-            .max_by_key(|title| title.duration)
+        self.titles.iter().max_by_key(|title| title.duration)
     }
 }

@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use std::fs;
 use directories::ProjectDirs;
 use num_cpus;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
 
 use crate::error::{AppError, Result};
 
@@ -11,25 +11,25 @@ use crate::error::{AppError, Result};
 pub struct Config {
     /// Path to HandBrakeCLI executable
     pub handbrake_path: Option<PathBuf>,
-    
+
     /// Default output directory
     pub output_dir: PathBuf,
-    
+
     /// Default encoding algorithm (x264 or x265)
     pub encode_algo: String,
-    
+
     /// Whether to split chapters into separate files
     pub chapter_split: bool,
-    
+
     /// Server settings for uploads
     pub server: Option<ServerConfig>,
-    
+
     /// Whether to eject disc after ripping
     pub eject_after_rip: bool,
-    
+
     /// Number of simultaneous ripping threads
     pub thread_count: usize,
-    
+
     /// HandBrake management settings
     #[serde(default)]
     pub handbrake_management: HandBrakeManagementConfig,
@@ -49,13 +49,13 @@ pub struct ServerConfig {
 pub struct HandBrakeManagementConfig {
     /// Whether to automatically download HandBrakeCLI if not found
     pub auto_download: bool,
-    
+
     /// Whether to prefer system HandBrakeCLI over managed version
     pub prefer_system: bool,
-    
+
     /// Maximum cache size in MB (0 = unlimited)
     pub max_cache_size_mb: u64,
-    
+
     /// Whether to verify HandBrakeCLI on startup
     pub verify_on_startup: bool,
 }
@@ -65,7 +65,7 @@ impl Default for Config {
         let output_dir = dirs_base_path()
             .map(|p| p.join("outs"))
             .unwrap_or_else(|| PathBuf::from("./outs"));
-        
+
         Self {
             handbrake_path: None,
             output_dir,
@@ -83,33 +83,34 @@ impl Config {
     /// Load configuration from the default config file
     pub fn load() -> Result<Self> {
         let config_path = config_file_path()?;
-        
+
         if !config_path.exists() {
             let config = Config::default();
             config.save()?;
             return Ok(config);
         }
-        
+
         let config_str = fs::read_to_string(&config_path)
             .map_err(|e| AppError::ConfigError(format!("Failed to read config file: {}", e)))?;
-            
+
         serde_json::from_str(&config_str)
             .map_err(|e| AppError::ConfigError(format!("Failed to parse config file: {}", e)))
     }
-    
+
     /// Save configuration to the default config file
     pub fn save(&self) -> Result<()> {
         let config_path = config_file_path()?;
-        
+
         // Ensure directory exists
         if let Some(parent) = config_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| AppError::ConfigError(format!("Failed to create config directory: {}", e)))?;
+            fs::create_dir_all(parent).map_err(|e| {
+                AppError::ConfigError(format!("Failed to create config directory: {}", e))
+            })?;
         }
-        
+
         let config_str = serde_json::to_string_pretty(self)
             .map_err(|e| AppError::ConfigError(format!("Failed to serialize config: {}", e)))?;
-            
+
         fs::write(&config_path, config_str)
             .map_err(|e| AppError::ConfigError(format!("Failed to write config file: {}", e)))
     }
@@ -117,8 +118,7 @@ impl Config {
 
 /// Get the base path for application directories
 fn dirs_base_path() -> Option<PathBuf> {
-    ProjectDirs::from("com", "dvdripper", "DvdRipper")
-        .map(|dirs| dirs.config_dir().to_path_buf())
+    ProjectDirs::from("com", "dvdripper", "DvdRipper").map(|dirs| dirs.config_dir().to_path_buf())
 }
 
 /// Get the path to the config file

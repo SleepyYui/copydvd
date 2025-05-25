@@ -1,5 +1,5 @@
+use crate::error::{AppError, Result};
 use std::path::PathBuf;
-use crate::error::{Result, AppError};
 
 // This module could contain more specific DVD detection logic,
 // for example, verifying if a given path is indeed a DVD structure.

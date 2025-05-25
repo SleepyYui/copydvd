@@ -1,5 +1,5 @@
+use crate::error::{AppError, Result};
 use std::path::PathBuf;
-use crate::error::{Result, AppError};
 
 /// Auto-detect DVD drive path
 pub fn auto_detect_dvd() -> Result<PathBuf> {

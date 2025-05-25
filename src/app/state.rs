@@ -18,9 +18,9 @@ pub enum AppStatus {
     Scanning,
     ScanComplete(usize), // Added ScanComplete with title count
     Ripping { completed: usize, total: usize },
-    RipComplete, // Added RipComplete
+    RipComplete,                 // Added RipComplete
     Uploading { progress: f32 }, // Added Uploading with progress
-    UploadComplete, // Added UploadComplete
+    UploadComplete,              // Added UploadComplete
     Completed,
     Error(String),
 }

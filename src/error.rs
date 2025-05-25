@@ -1,5 +1,5 @@
-use thiserror::Error;
 use std::path::PathBuf;
+use thiserror::Error;
 
 /// Custom error types for the DVD ripper application
 #[derive(Error, Debug)]

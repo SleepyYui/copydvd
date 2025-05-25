@@ -1,8 +1,8 @@
+use crate::config::Config;
+use crate::handbrake_manager::HandBrakeManager;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Duration;
-use crate::config::Config;
-use crate::handbrake_manager::HandBrakeManager;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Title {
@@ -11,7 +11,7 @@ pub struct Title {
     pub size: DvdSize,
     pub chapters: Vec<Chapter>,
     pub description: Option<String>, // e.g., "Main Movie", "Bonus Feature"
-    // Add other relevant fields like audio tracks, subtitles if needed
+                                     // Add other relevant fields like audio tracks, subtitles if needed
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,4 +57,3 @@ impl Dvd {
     // pub async fn rip_title(...) -> crate::error::Result<()> { /* ... */ }
     // pub async fn eject(&self) -> crate::error::Result<()> { /* ... */ }
 }
-

@@ -1,7 +1,7 @@
+use num_cpus;
 use std::path::Path;
 use std::time::Duration;
 use tracing::info;
-use num_cpus;
 
 /// Format duration as hours:minutes:seconds
 pub fn format_duration(duration: Duration) -> String {
@@ -9,7 +9,7 @@ pub fn format_duration(duration: Duration) -> String {
     let hours = total_seconds / 3600;
     let minutes = (total_seconds % 3600) / 60;
     let seconds = total_seconds % 60;
-    
+
     format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
 }
 
@@ -18,12 +18,12 @@ pub fn is_dvd_path(path: &Path) -> bool {
     if !path.exists() {
         return false;
     }
-    
+
     // Check for VIDEO_TS directory (standard DVD structure)
     if path.is_dir() && path.join("VIDEO_TS").exists() {
         return true;
     }
-    
+
     // Check if it's a device file (Linux/macOS)
     #[cfg(unix)]
     {
@@ -35,7 +35,7 @@ pub fn is_dvd_path(path: &Path) -> bool {
             }
         }
     }
-    
+
     false
 }
 
@@ -60,7 +60,7 @@ pub fn log_system_info() {
     info!("  OS: {}", std::env::consts::OS);
     info!("  Architecture: {}", std::env::consts::ARCH);
     info!("  CPU cores: {}", num_cpus::get());
-    
+
     #[cfg(target_os = "linux")]
     {
         if let Ok(release) = std::fs::read_to_string("/etc/os-release") {
@@ -71,7 +71,7 @@ pub fn log_system_info() {
             }
         }
     }
-    
+
     #[cfg(target_os = "macos")]
     {
         use std::process::Command;
@@ -80,11 +80,14 @@ pub fn log_system_info() {
             info!("  macOS version: {}", version);
         }
     }
-    
+
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
-        if let Ok(output) = Command::new("wmic").args(&["os", "get", "Caption"]).output() {
+        if let Ok(output) = Command::new("wmic")
+            .args(&["os", "get", "Caption"])
+            .output()
+        {
             let output = String::from_utf8_lossy(&output.stdout);
             if let Some(line) = output.lines().nth(1) {
                 info!("  Windows version: {}", line.trim());
