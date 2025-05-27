@@ -265,7 +265,7 @@ impl DvdRipperApp {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     // Right side - Status and system info
                     ui.vertical(|ui| {
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Top), |ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             // System status indicator
                             if let Ok(state) = self.app_state.try_lock() {
                                 let (status_text, color, pulse) = match &state.status {
@@ -278,7 +278,7 @@ impl DvdRipperApp {
                                 
                                 // Status dot with pulse animation
                                 let dot_alpha = if pulse {
-                                    ((self.animation_time * 4.0).sin() * 0.3 + 0.7) as u8
+                                    (((self.animation_time * 4.0).sin() * 0.3 + 0.7).clamp(0.0, 1.0) * 255.0) as u8
                                 } else {
                                     255
                                 };
@@ -309,7 +309,7 @@ impl DvdRipperApp {
                         ui.add_space(StyleConstants::SPACING_SM);
                         
                         // Additional status info
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Top), |ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if !self.ui_state.titles.is_empty() {
                                 ui.colored_label(ModernTheme::TEXT_SECONDARY, 
                                     format!("{} titles • {} selected", 
@@ -339,11 +339,12 @@ impl DvdRipperApp {
             let particle_y = header_rect.min.y + header_rect.height() * y_ratio + 
                 (self.animation_time * speed).sin() * 5.0;
             
-            let alpha = ((self.animation_time * speed + x_ratio * 10.0).sin() * 0.3 + 0.4) as u8;
+            let alpha = ((self.animation_time * speed + x_ratio * 10.0).sin() * 0.3 + 0.4).clamp(0.0, 1.0) * 255.0;
+            let alpha = alpha as u8;
             ui.painter().circle_filled(
                 egui::pos2(particle_x, particle_y),
                 1.5,
-                Color32::from_rgba_premultiplied(100, 200, 255, alpha * 40 / 255)
+                Color32::from_rgba_premultiplied(100, 200, 255, ((alpha as u32 * 40) / 255) as u8)
             );
         }
     }

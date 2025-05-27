@@ -1,4 +1,4 @@
-use egui::{Color32, Rounding, Shadow, Stroke, Style, Visuals, FontId, TextStyle};
+use egui::{Color32, Rounding, Shadow, Stroke, Style, Visuals, FontId, TextStyle, Vec2};
 use std::collections::BTreeMap;
 
 /// Ultra-modern high-tech theme with advanced visual effects
@@ -86,6 +86,18 @@ impl StyleConstants {
     pub const TAB_HEIGHT: f32 = 48.0;
     pub const HEADER_HEIGHT: f32 = 64.0;
     
+    // Responsive breakpoints
+    pub const BREAKPOINT_MOBILE: f32 = 480.0;
+    pub const BREAKPOINT_TABLET: f32 = 768.0;
+    pub const BREAKPOINT_DESKTOP: f32 = 1024.0;
+    pub const BREAKPOINT_LARGE: f32 = 1440.0;
+    
+    // Container widths
+    pub const CONTAINER_SM: f32 = 400.0;
+    pub const CONTAINER_MD: f32 = 600.0;
+    pub const CONTAINER_LG: f32 = 800.0;
+    pub const CONTAINER_XL: f32 = 1200.0;
+    
     // Sophisticated border radius
     pub const ROUNDING_XS: f32 = 2.0;
     pub const ROUNDING_SM: f32 = 6.0;
@@ -124,16 +136,68 @@ impl StyleConstants {
     };
     
     pub const SHADOW_GLOW: Shadow = Shadow {
-        offset: egui::Vec2::new(0.0, 0.0),
+        offset: Vec2::new(0.0, 0.0),
         blur: 20.0,
         spread: 2.0,
         color: Color32::from_rgba_premultiplied(0, 150, 255, 60),
+    };
+    
+    // Enhanced shadow effects for ultra-modern look
+    pub const SHADOW_INTENSE: Shadow = Shadow {
+        offset: Vec2::new(0.0, 4.0),
+        blur: 32.0,
+        spread: 4.0,
+        color: Color32::from_rgba_premultiplied(0, 0, 0, 120),
+    };
+    
+    pub const SHADOW_NEON: Shadow = Shadow {
+        offset: Vec2::new(0.0, 0.0),
+        blur: 25.0,
+        spread: 3.0,
+        color: Color32::from_rgba_premultiplied(0, 255, 255, 80),
     };
     
     // Animation timing
     pub const ANIMATION_FAST: f32 = 0.15;
     pub const ANIMATION_NORMAL: f32 = 0.25;
     pub const ANIMATION_SLOW: f32 = 0.4;
+    
+    /// Get responsive spacing based on screen width
+    pub fn responsive_spacing(screen_width: f32, base_spacing: f32) -> f32 {
+        if screen_width < Self::BREAKPOINT_MOBILE {
+            base_spacing * 0.7
+        } else if screen_width < Self::BREAKPOINT_TABLET {
+            base_spacing * 0.85
+        } else {
+            base_spacing
+        }
+    }
+    
+    /// Get responsive container width
+    pub fn responsive_container_width(screen_width: f32) -> f32 {
+        if screen_width < Self::BREAKPOINT_MOBILE {
+            screen_width * 0.95
+        } else if screen_width < Self::BREAKPOINT_TABLET {
+            (screen_width * 0.9).min(Self::CONTAINER_SM)
+        } else if screen_width < Self::BREAKPOINT_DESKTOP {
+            (screen_width * 0.85).min(Self::CONTAINER_MD)
+        } else if screen_width < Self::BREAKPOINT_LARGE {
+            (screen_width * 0.8).min(Self::CONTAINER_LG)
+        } else {
+            Self::CONTAINER_XL
+        }
+    }
+    
+    /// Get responsive font size
+    pub fn responsive_font_size(screen_width: f32, base_size: f32) -> f32 {
+        if screen_width < Self::BREAKPOINT_MOBILE {
+            base_size * 0.9
+        } else if screen_width < Self::BREAKPOINT_TABLET {
+            base_size * 0.95
+        } else {
+            base_size
+        }
+    }
 }
 
 /// Apply stunning modern theme with advanced visual effects
@@ -280,12 +344,15 @@ fn setup_custom_fonts(ctx: &egui::Context) {
     
 }
 
-/// Create stunning glassmorphism card container
+/// Create stunning glassmorphism card container with enhanced visual effects
 pub fn glass_card<R>(
     ui: &mut egui::Ui,
     glow: bool,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> egui::InnerResponse<R> {
+    let screen_width = ui.available_width();
+    let responsive_padding = StyleConstants::responsive_spacing(screen_width, StyleConstants::SPACING_LG);
+    
     let fill = if glow {
         ModernTheme::CARD_ELEVATED
     } else {
@@ -299,7 +366,7 @@ pub fn glass_card<R>(
     };
     
     let shadow = if glow {
-        StyleConstants::SHADOW_GLOW
+        StyleConstants::SHADOW_INTENSE
     } else {
         StyleConstants::SHADOW_MEDIUM
     };
@@ -309,7 +376,32 @@ pub fn glass_card<R>(
         .stroke(stroke)
         .rounding(Rounding::same(StyleConstants::ROUNDING_LG))
         .shadow(shadow)
-        .inner_margin(egui::Margin::same(StyleConstants::SPACING_LG))
+        .inner_margin(egui::Margin::same(responsive_padding))
+        .show(ui, add_contents)
+}
+
+/// Create ultra-modern glass card with neon glow effects
+pub fn neon_glass_card<R>(
+    ui: &mut egui::Ui,
+    accent_color: Color32,
+    add_contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
+    let screen_width = ui.available_width();
+    let responsive_padding = StyleConstants::responsive_spacing(screen_width, StyleConstants::SPACING_LG);
+    
+    let glow_shadow = Shadow {
+        offset: Vec2::new(0.0, 0.0),
+        blur: 24.0,
+        spread: 3.0,
+        color: Color32::from_rgba_premultiplied(accent_color.r(), accent_color.g(), accent_color.b(), 60),
+    };
+    
+    egui::Frame::none()
+        .fill(ModernTheme::GLASS_ELEVATED)
+        .stroke(Stroke::new(1.5, accent_color))
+        .rounding(Rounding::same(StyleConstants::ROUNDING_LG))
+        .shadow(glow_shadow)
+        .inner_margin(egui::Margin::same(responsive_padding))
         .show(ui, add_contents)
 }
 
@@ -412,7 +504,7 @@ pub fn neon_button(text: &str, color: Color32) -> egui::Button<'_> {
             .color(ModernTheme::TEXT_BRIGHT)
     )
     .fill(color)
-    .stroke(Stroke::new(1.5, color.gamma_multiply(1.2)))
+    .stroke(Stroke::new(1.5, color.gamma_multiply(0.8)))
     .rounding(Rounding::same(StyleConstants::ROUNDING_MD))
 }
 
@@ -501,4 +593,135 @@ pub fn step_indicator(
         egui::Rect::from_center_size(center, egui::vec2(size, size)),
         egui::Sense::hover()
     );
+}
+
+/// Create responsive container that adapts to screen size
+pub fn responsive_container<R>(
+    ui: &mut egui::Ui,
+    add_contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
+    let screen_width = ui.available_width();
+    let container_width = StyleConstants::responsive_container_width(screen_width);
+    
+    ui.vertical_centered(|ui| {
+        ui.set_max_width(container_width);
+        add_contents(ui)
+    })
+}
+
+/// Create responsive grid layout that adapts to screen size
+pub fn responsive_grid<R>(
+    ui: &mut egui::Ui,
+    min_column_width: f32,
+    add_contents: impl FnOnce(&mut [&mut egui::Ui]) -> R,
+) -> R {
+    let screen_width = ui.available_width();
+    let responsive_spacing = StyleConstants::responsive_spacing(screen_width, StyleConstants::SPACING_MD);
+    
+    // Calculate optimal number of columns based on screen size
+    let columns = if screen_width < StyleConstants::BREAKPOINT_MOBILE {
+        1
+    } else if screen_width < StyleConstants::BREAKPOINT_TABLET {
+        2
+    } else {
+        ((screen_width - responsive_spacing) / (min_column_width + responsive_spacing)).floor().max(1.0) as usize
+    };
+    
+    ui.columns(columns, |columns| {
+        let mut ui_refs: Vec<&mut egui::Ui> = columns.iter_mut().collect();
+        add_contents(&mut ui_refs)
+    })
+}
+
+/// Create responsive two-column layout that stacks on mobile
+pub fn responsive_two_column<R>(
+    ui: &mut egui::Ui,
+    left_content: impl FnOnce(&mut egui::Ui) -> R,
+    right_content: impl FnOnce(&mut egui::Ui),
+) -> R {
+    let screen_width = ui.available_width();
+    
+    if screen_width < StyleConstants::BREAKPOINT_TABLET {
+        // Stack vertically on mobile/tablet
+        let result = left_content(ui);
+        ui.add_space(StyleConstants::responsive_spacing(screen_width, StyleConstants::SPACING_LG));
+        right_content(ui);
+        result
+    } else {
+        // Side by side on desktop
+        ui.columns(2, |columns| {
+            let result = left_content(&mut columns[0]);
+            right_content(&mut columns[1]);
+            result
+        })
+    }
+}
+
+/// Create enhanced glass card with animation effects
+pub fn animated_glass_card<R>(
+    ui: &mut egui::Ui,
+    id: egui::Id,
+    hover_glow: bool,
+    add_contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
+    let screen_width = ui.available_width();
+    let responsive_padding = StyleConstants::responsive_spacing(screen_width, StyleConstants::SPACING_LG);
+    
+    let response = ui.allocate_response(ui.available_size(), egui::Sense::hover());
+    let is_hovered = response.hovered();
+    
+    // Animate glow effect
+    let glow_strength = ui.ctx().animate_bool(id, is_hovered && hover_glow).clamp(0.0, 1.0);
+    
+    let fill = if glow_strength > 0.0 {
+        ModernTheme::CARD_BACKGROUND.lerp_to_gamma(ModernTheme::CARD_ELEVATED, glow_strength)
+    } else {
+        ModernTheme::CARD_BACKGROUND
+    };
+        
+    let stroke_color = if glow_strength > 0.0 {
+        ModernTheme::BORDER_NORMAL.lerp_to_gamma(ModernTheme::BORDER_BRIGHT, glow_strength)
+    } else {
+        ModernTheme::BORDER_NORMAL
+    };
+    
+    let shadow = if glow_strength > 0.0 {
+        Shadow {
+            offset: Vec2::new(0.0, 2.0 * glow_strength),
+            blur: 16.0 + 8.0 * glow_strength,
+            spread: 2.0 * glow_strength,
+            color: Color32::from_rgba_premultiplied(0, 150, 255, (40.0 * glow_strength) as u8),
+        }
+    } else {
+        StyleConstants::SHADOW_MEDIUM
+    };
+    
+    egui::Frame::none()
+        .fill(fill)
+        .stroke(Stroke::new(1.0 + glow_strength, stroke_color))
+        .rounding(Rounding::same(StyleConstants::ROUNDING_LG))
+        .shadow(shadow)
+        .inner_margin(egui::Margin::same(responsive_padding))
+        .show(ui, add_contents)
+}
+
+/// Get device type based on screen width
+pub fn get_device_type(screen_width: f32) -> DeviceType {
+    if screen_width < StyleConstants::BREAKPOINT_MOBILE {
+        DeviceType::Mobile
+    } else if screen_width < StyleConstants::BREAKPOINT_TABLET {
+        DeviceType::Tablet
+    } else if screen_width < StyleConstants::BREAKPOINT_DESKTOP {
+        DeviceType::Desktop
+    } else {
+        DeviceType::LargeDesktop
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DeviceType {
+    Mobile,
+    Tablet,
+    Desktop,
+    LargeDesktop,
 }

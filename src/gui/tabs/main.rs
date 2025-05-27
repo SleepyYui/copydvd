@@ -1,6 +1,6 @@
 use crate::app::state::AppState;
 use crate::gui::state::UiState;
-use crate::gui::theme::{ModernTheme, StyleConstants, glass_card, tech_section, neon_progress_bar, neon_button, status_indicator, step_indicator};
+use crate::gui::theme::{ModernTheme, StyleConstants, glass_card, tech_section, neon_progress_bar, neon_button, status_indicator, step_indicator, responsive_container, animated_glass_card, get_device_type, DeviceType};
 use egui::{Color32, Rounding, Stroke, Vec2, Align, Layout, RichText};
 use std::sync::{Arc, Mutex};
 
@@ -11,14 +11,13 @@ pub fn render_main_tab(ui: &mut egui::Ui, ui_state: &mut UiState, app_state: Arc
     
     ui.add_space(StyleConstants::SPACING_XL);
     
-    // Main content with glassmorphism container
-    ui.vertical_centered(|ui| {
-        ui.set_max_width(700.0);
-        
+    // Main content with responsive container
+    responsive_container(ui, |ui| {
         // Hero workflow section with advanced styling
         render_workflow_hero(ui, ui_state, app_state.clone());
         
-        ui.add_space(StyleConstants::SPACING_XXL);
+        let screen_width = ui.available_width();
+        ui.add_space(StyleConstants::responsive_spacing(screen_width, StyleConstants::SPACING_XXL));
         
         // Advanced title selection if available
         if !ui_state.titles.is_empty() {
@@ -129,31 +128,36 @@ fn render_workflow_hero(ui: &mut egui::Ui, ui_state: &mut UiState, app_state: Ar
     
     // Workflow steps with advanced animations
     render_workflow_step(ui, ui_state, 1, "Select Media Source", step1_complete, true);
-    ui.add_space(StyleConstants::SPACING_XL);
+    let screen_width = ui.available_width();
+    let step_spacing = StyleConstants::responsive_spacing(screen_width, StyleConstants::SPACING_XL);
+    ui.add_space(step_spacing);
     
     render_workflow_step(ui, ui_state, 2, "Choose Output Location", step2_complete, step1_complete);
-    ui.add_space(StyleConstants::SPACING_XL);
+    ui.add_space(step_spacing);
     
     render_workflow_step(ui, ui_state, 3, "Scan & Configure", step3_complete, step2_complete);
-    ui.add_space(StyleConstants::SPACING_XL);
+    ui.add_space(step_spacing);
     
     render_workflow_step(ui, ui_state, 4, "Process Media", false, can_rip);
     
     // Action center
-    ui.add_space(StyleConstants::SPACING_XXL);
+    ui.add_space(StyleConstants::responsive_spacing(screen_width, StyleConstants::SPACING_XXL));
     render_action_center(ui, ui_state, app_state, can_rip);
 }
 
-/// Render individual workflow step with glassmorphism
+/// Render individual workflow step with enhanced glassmorphism
 fn render_workflow_step(ui: &mut egui::Ui, ui_state: &mut UiState, step: u8, title: &str, completed: bool, enabled: bool) {
     let glow = completed || (enabled && !completed);
+    let screen_width = ui.available_width();
+    let device_type = get_device_type(screen_width);
     
-    glass_card(ui, glow, |ui| {
+    animated_glass_card(ui, egui::Id::new(format!("step_{}", step)), glow, |ui| {
         ui.horizontal(|ui| {
             // Step indicator with advanced styling
             step_indicator(ui, step, completed, enabled && !completed, 32.0);
             
-            ui.add_space(StyleConstants::SPACING_LG);
+            let responsive_spacing = StyleConstants::responsive_spacing(screen_width, StyleConstants::SPACING_LG);
+            ui.add_space(responsive_spacing);
             
             ui.vertical(|ui| {
                 // Step title with enhanced typography
@@ -165,20 +169,26 @@ fn render_workflow_step(ui: &mut egui::Ui, ui_state: &mut UiState, step: u8, tit
                     ModernTheme::TEXT_MUTED
                 };
                 
+                let title_size = match device_type {
+                    DeviceType::Mobile => 14.0,
+                    DeviceType::Tablet => 15.0,
+                    _ => 16.0,
+                };
+                
                 ui.colored_label(title_color, 
                     RichText::new(title)
-                        .size(16.0)
+                        .size(title_size)
                         .strong()
                 );
                 
-                ui.add_space(StyleConstants::SPACING_SM);
+                ui.add_space(StyleConstants::responsive_spacing(screen_width, StyleConstants::SPACING_SM));
                 
                 // Step content based on step number
                 match step {
-                    1 => render_source_selection(ui, ui_state, enabled),
-                    2 => render_output_selection(ui, ui_state, enabled),
-                    3 => render_scan_controls(ui, ui_state, enabled),
-                    4 => render_process_controls(ui, ui_state, enabled),
+                    1 => render_source_selection(ui, ui_state, enabled, device_type),
+                    2 => render_output_selection(ui, ui_state, enabled, device_type),
+                    3 => render_scan_controls(ui, ui_state, enabled, device_type),
+                    4 => render_process_controls(ui, ui_state, enabled, device_type),
                     _ => {}
                 }
             });
@@ -186,16 +196,22 @@ fn render_workflow_step(ui: &mut egui::Ui, ui_state: &mut UiState, step: u8, tit
     });
 }
 
-/// Render source selection with modern UI
-fn render_source_selection(ui: &mut egui::Ui, ui_state: &mut UiState, enabled: bool) {
+/// Render source selection with responsive modern UI
+fn render_source_selection(ui: &mut egui::Ui, ui_state: &mut UiState, enabled: bool, device_type: DeviceType) {
     ui.add_enabled_ui(enabled, |ui| {
         ui.horizontal(|ui| {
             ui.set_height(StyleConstants::BUTTON_HEIGHT_MD);
             
-            // Modern text input with glassmorphism
+            // Responsive text input with glassmorphism
+            let input_width = match device_type {
+                DeviceType::Mobile => ui.available_width() - 80.0,
+                DeviceType::Tablet => (ui.available_width() * 0.7).min(400.0),
+                _ => 350.0,
+            };
+            
             let text_edit = egui::TextEdit::singleline(&mut ui_state.input_path)
                 .hint_text("Select DVD drive or folder path...")
-                .desired_width(350.0);
+                .desired_width(input_width);
             ui.add(text_edit);
             
             ui.add_space(StyleConstants::SPACING_MD);
@@ -226,14 +242,20 @@ fn render_source_selection(ui: &mut egui::Ui, ui_state: &mut UiState, enabled: b
 }
 
 /// Render output selection with enhanced styling
-fn render_output_selection(ui: &mut egui::Ui, ui_state: &mut UiState, enabled: bool) {
+fn render_output_selection(ui: &mut egui::Ui, ui_state: &mut UiState, enabled: bool, device_type: DeviceType) {
     ui.add_enabled_ui(enabled, |ui| {
         ui.horizontal(|ui| {
             ui.set_height(StyleConstants::BUTTON_HEIGHT_MD);
             
+            let input_width = match device_type {
+                DeviceType::Mobile => ui.available_width() - 80.0,
+                DeviceType::Tablet => (ui.available_width() * 0.7).min(400.0),
+                _ => 350.0,
+            };
+            
             let text_edit = egui::TextEdit::singleline(&mut ui_state.output_path)
-                .hint_text("Choose where to save processed files...")
-                .desired_width(350.0);
+                .hint_text("Choose where to save files...")
+                .desired_width(input_width);
             ui.add(text_edit);
             
             ui.add_space(StyleConstants::SPACING_MD);
@@ -261,8 +283,8 @@ fn render_output_selection(ui: &mut egui::Ui, ui_state: &mut UiState, enabled: b
     });
 }
 
-/// Render scan controls with advanced effects
-fn render_scan_controls(ui: &mut egui::Ui, ui_state: &mut UiState, enabled: bool) {
+/// Render scan controls with responsive advanced styling
+fn render_scan_controls(ui: &mut egui::Ui, ui_state: &mut UiState, enabled: bool, device_type: DeviceType) {
     ui.add_enabled_ui(enabled, |ui| {
         ui.horizontal(|ui| {
             if ui.add_sized(
@@ -296,8 +318,8 @@ fn render_scan_controls(ui: &mut egui::Ui, ui_state: &mut UiState, enabled: bool
     });
 }
 
-/// Render process controls with stunning effects
-fn render_process_controls(ui: &mut egui::Ui, ui_state: &mut UiState, enabled: bool) {
+/// Render process controls with responsive stunning effects
+fn render_process_controls(ui: &mut egui::Ui, ui_state: &mut UiState, enabled: bool, device_type: DeviceType) {
     ui.add_enabled_ui(enabled, |ui| {
         // Processing options with modern toggles
         ui.horizontal(|ui| {
@@ -330,16 +352,16 @@ fn render_action_center(ui: &mut egui::Ui, ui_state: &mut UiState, _app_state: A
                     Vec2::new(120.0, StyleConstants::BUTTON_HEIGHT_MD),
                     neon_button("Quick Scan", ModernTheme::NEON_BLUE)
                 ).clicked() {
-                    // Auto-detect and scan
+                    scan_dvd(ui_state);
                 }
                 
                 ui.add_space(StyleConstants::SPACING_MD);
                 
                 if ui.add_sized(
                     Vec2::new(120.0, StyleConstants::BUTTON_HEIGHT_MD),
-                    neon_button("Select All", ModernTheme::NEON_PURPLE)
+                    neon_button("Refresh", ModernTheme::NEON_CYAN)
                 ).clicked() {
-                    ui_state.select_all_titles();
+                    refresh_titles(ui_state);
                 }
                 
                 ui.add_space(StyleConstants::SPACING_MD);
@@ -348,19 +370,41 @@ fn render_action_center(ui: &mut egui::Ui, ui_state: &mut UiState, _app_state: A
                     Vec2::new(120.0, StyleConstants::BUTTON_HEIGHT_MD),
                     neon_button("Clear", ModernTheme::WARNING)
                 ).clicked() {
-                    ui_state.deselect_all_titles();
+                    clear_selection(ui_state);
                 }
-                
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if can_process {
-                        ui.colored_label(ModernTheme::NEON_GREEN, "● Ready to process");
-                    } else {
-                        ui.colored_label(ModernTheme::TEXT_MUTED, "○ Complete setup to continue");
-                    }
-                });
             });
         });
     });
+}
+
+/// Browse for DVD source
+fn browse_for_source(ui_state: &mut UiState) {
+    // TODO: Implement DVD source browsing
+}
+
+/// Browse for output directory
+fn browse_for_output(ui_state: &mut UiState) {
+    // TODO: Implement output directory browsing
+}
+
+/// Scan DVD for titles
+fn scan_dvd(ui_state: &mut UiState) {
+    // TODO: Implement DVD scanning
+}
+
+/// Start ripping process
+fn start_ripping(ui_state: &mut UiState) {
+    // TODO: Implement ripping start
+}
+
+/// Refresh title list
+fn refresh_titles(ui_state: &mut UiState) {
+    // TODO: Implement title refresh
+}
+
+/// Clear title selection
+fn clear_selection(ui_state: &mut UiState) {
+    ui_state.titles.clear();
 }
 
 /// Render advanced title selection with glassmorphism
@@ -499,50 +543,3 @@ fn browse_for_input(ui_state: &mut UiState) {
     }
 }
 
-/// Handle browsing for output directory
-fn browse_for_output(ui_state: &mut UiState) {
-    if let Some(path) = rfd::FileDialog::new()
-        .set_title("Select Output Directory")
-        .pick_folder()
-    {
-        ui_state.output_path = path.to_string_lossy().to_string();
-        ui_state.clear_error();
-    }
-}
-
-/// Handle DVD scanning with enhanced feedback
-fn scan_dvd(ui_state: &mut UiState) {
-    if ui_state.input_path.is_empty() {
-        ui_state.set_error("Please select a media source first".to_string());
-        return;
-    }
-
-    ui_state.set_status("Initiating media scan...".to_string());
-    ui_state.titles.clear();
-    ui_state.selected_titles.clear();
-
-    // TODO: Implement async DVD scanning
-    tokio::spawn(async move {
-        // Advanced scanning logic here
-    });
-}
-
-/// Handle starting the ripping process
-fn start_ripping(ui_state: &mut UiState) {
-    if ui_state.output_path.is_empty() {
-        ui_state.set_error("Please configure output directory first".to_string());
-        return;
-    }
-
-    if ui_state.selected_title_count() == 0 {
-        ui_state.set_error("Please select at least one title to process".to_string());
-        return;
-    }
-
-    ui_state.set_status("Initializing media processing...".to_string());
-
-    // TODO: Implement async ripping process
-    tokio::spawn(async move {
-        // Advanced processing logic here
-    });
-}

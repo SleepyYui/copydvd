@@ -5,6 +5,9 @@ use egui::{Rounding, Vec2};
 /// Display error message with modern styling
 pub fn error_display(ui: &mut egui::Ui, error_message: &mut String) {
     if !error_message.is_empty() {
+        let error_text = error_message.clone();
+        let mut should_clear = false;
+        
         glass_card(ui, true, |ui| {
             ui.horizontal(|ui| {
                 // Error icon
@@ -17,7 +20,7 @@ pub fn error_display(ui: &mut egui::Ui, error_message: &mut String) {
                 
                 ui.vertical(|ui| {
                     ui.colored_label(ModernTheme::ERROR, "Error");
-                    ui.colored_label(ModernTheme::TEXT_PRIMARY, error_message);
+                    ui.colored_label(ModernTheme::TEXT_PRIMARY, &error_text);
                 });
                 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -26,12 +29,16 @@ pub fn error_display(ui: &mut egui::Ui, error_message: &mut String) {
                             .fill(ModernTheme::ERROR)
                             .rounding(Rounding::same(StyleConstants::ROUNDING_FULL))
                     ).clicked() {
-                        error_message.clear();
+                        should_clear = true;
                     }
                 });
             });
         });
         ui.add_space(StyleConstants::SPACING_MD);
+        
+        if should_clear {
+            error_message.clear();
+        }
     }
 }
 
@@ -164,4 +171,42 @@ pub enum StatusType {
     Info,
     Normal,
     Muted,
+}
+
+/// Create a card container with glassmorphism
+pub fn card_container<R>(
+    ui: &mut egui::Ui,
+    add_contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
+    glass_card(ui, false, add_contents)
+}
+
+/// Create a section header with enhanced styling
+pub fn section<R>(
+    ui: &mut egui::Ui,
+    title: &str,
+    add_contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    ui.horizontal(|ui| {
+        ui.colored_label(ModernTheme::TEXT_BRIGHT, 
+            egui::RichText::new(title)
+                .size(16.0)
+                .strong()
+        );
+    });
+    
+    ui.add_space(StyleConstants::SPACING_SM);
+    let response = add_contents(ui);
+    ui.add_space(StyleConstants::SPACING_MD);
+    
+    response
+}
+
+/// Create a styled progress bar
+pub fn styled_progress_bar(
+    ui: &mut egui::Ui,
+    progress: f32,
+    text: Option<&str>,
+) {
+    neon_progress_bar(ui, progress, ModernTheme::NEON_BLUE, 8.0, text);
 }
