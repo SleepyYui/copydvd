@@ -17,7 +17,7 @@ A high-performance, cross-platform DVD ripping application written in Rust with 
 
 ### Pre-built Binaries
 
-Download the latest release for your platform from the [releases page](https://github.com/your-repo/copydvd/releases):
+Download the latest release for your platform from the [releases page](https://github.com/sleepyyui/copydvd/releases):
 
 - **Linux**: `dvd_ripper-linux-x86_64` or `dvd_ripper-linux-aarch64`
 - **macOS**: `dvd_ripper-macos-x86_64` (Intel) or `dvd_ripper-macos-aarch64` (Apple Silicon)
