@@ -1,6 +1,7 @@
 use crate::error::{AppError, Result};
 use anyhow::Context;
 use directories::ProjectDirs;
+use futures_util::StreamExt;
 use reqwest;
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -9,13 +10,24 @@ use std::process::Command;
 use tracing::{debug, info, warn};
 use zip::ZipArchive;
 
+// Progress callback type for UI updates
+#[derive(Debug, Clone)]
+pub enum HandBrakePhase {
+    Downloading,
+    Extracting,
+    Installing,
+    Verifying,
+}
+
+pub type ProgressCallback = Box<dyn Fn(HandBrakePhase, f32) + Send + Sync>;
+
 const HANDBRAKE_VERSION: &str = "1.9.2";
 const HANDBRAKE_BASE_URL: &str = "https://github.com/HandBrake/HandBrake/releases/download";
 
-#[derive(Debug, Clone)]
 pub struct HandBrakeManager {
     cache_dir: PathBuf,
     binary_path: Option<PathBuf>,
+    progress_callback: Option<ProgressCallback>,
 }
 
 #[derive(Debug)]
@@ -28,18 +40,27 @@ struct PlatformInfo {
 impl HandBrakeManager {
     pub fn new() -> Result<Self> {
         let cache_dir = Self::get_cache_dir()?;
-        fs::create_dir_all(&cache_dir)
-            .with_context(|| format!("Failed to create cache directory: {}", cache_dir.display()))
-            .map_err(|e| AppError::HandbrakeError(e.to_string()))?;
+        fs::create_dir_all(&cache_dir)?;
 
         Ok(Self {
             cache_dir,
             binary_path: None,
+            progress_callback: None,
         })
     }
 
+    pub fn set_progress_callback(&mut self, callback: ProgressCallback) {
+        self.progress_callback = Some(callback);
+    }
+
+    fn update_progress(&self, phase: HandBrakePhase, progress: f32) {
+        if let Some(callback) = &self.progress_callback {
+            callback(phase, progress);
+        }
+    }
+
     fn get_cache_dir() -> Result<PathBuf> {
-        ProjectDirs::from("com", "dvd-ripper", "dvd-ripper")
+        ProjectDirs::from("com", "sleepyyui", "copydvd")
             .map(|proj_dirs| proj_dirs.cache_dir().join("handbrake"))
             .ok_or_else(|| {
                 AppError::HandbrakeError("Failed to determine cache directory".to_string())
@@ -47,39 +68,73 @@ impl HandBrakeManager {
     }
 
     pub async fn get_handbrake_path(&mut self) -> Result<PathBuf> {
+        info!("Starting HandBrake path resolution...");
+
         // If we already have a cached path, return it
         if let Some(path) = &self.binary_path {
             if path.exists() {
+                info!("Using already cached HandBrake path: {}", path.display());
                 return Ok(path.clone());
+            } else {
+                warn!("Cached HandBrake path no longer exists: {}", path.display());
+                self.binary_path = None;
             }
         }
 
         // Check if HandBrake is available in system PATH
-        if let Ok(system_path) = which::which("HandBrake") {
-            info!("Found HandBrake in system PATH: {}", system_path.display());
-            self.binary_path = Some(system_path.clone());
-            return Ok(system_path);
+        info!("Checking for HandBrake in system PATH...");
+
+        // On macOS, try both "HandBrake" and "HandBrakeCLI"
+        let possible_names = if cfg!(target_os = "macos") {
+            vec!["HandBrakeCLI", "HandBrake", "handbrake"]
+        } else {
+            vec!["HandBrake", "handbrake"]
+        };
+
+        for name in possible_names {
+            if let Ok(system_path) = which::which(name) {
+                info!(
+                    "Found HandBrake in system PATH: {} -> {}",
+                    name,
+                    system_path.display()
+                );
+                self.binary_path = Some(system_path.clone());
+                return Ok(system_path);
+            }
         }
+        info!("HandBrake not found in system PATH");
 
         // Check if we have a cached binary
         let cached_binary = self.get_cached_binary_path()?;
+        info!(
+            "Checking for cached HandBrake at: {}",
+            cached_binary.display()
+        );
         if cached_binary.exists() {
             info!("Found cached HandBrake: {}", cached_binary.display());
             self.binary_path = Some(cached_binary.clone());
             return Ok(cached_binary);
         }
+        info!("No cached HandBrake found");
 
         // Download and cache HandBrake
-        info!("HandBrake not found. Downloading and caching...");
+        info!("HandBrake not found anywhere. Starting download process...");
         self.download_handbrake().await?;
 
         let binary_path = self.get_cached_binary_path()?;
         if !binary_path.exists() {
-            return Err(AppError::HandbrakeError(
-                "Failed to download HandBrake".to_string(),
-            ));
+            let error_msg = format!(
+                "Failed to download HandBrake - binary not found at expected path: {}",
+                binary_path.display()
+            );
+            warn!("{}", error_msg);
+            return Err(AppError::HandbrakeError(error_msg));
         }
 
+        info!(
+            "HandBrake successfully downloaded to: {}",
+            binary_path.display()
+        );
         self.binary_path = Some(binary_path.clone());
         Ok(binary_path)
     }
@@ -92,47 +147,129 @@ impl HandBrakeManager {
     async fn download_handbrake(&self) -> Result<()> {
         let platform_info = Self::get_platform_info()?;
 
-        info!("Downloading HandBrake from: {}", platform_info.download_url);
+        info!("=== Starting HandBrake Download ===");
+        info!(
+            "Platform: {} {}",
+            std::env::consts::OS,
+            std::env::consts::ARCH
+        );
+        info!("Download URL: {}", platform_info.download_url);
+        info!("Target binary: {}", platform_info.binary_name);
+        info!("Cache directory: {}", self.cache_dir.display());
 
-        let client = reqwest::Client::new();
+        // Create HTTP client with timeout and user agent
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(300)) // 5 minute timeout
+            .user_agent("CopyDVD/1.0")
+            .build()
+            .map_err(|e| {
+                AppError::HandbrakeError(format!("Failed to create HTTP client: {}", e))
+            })?;
+
+        info!("Sending HTTP request to download HandBrake...");
         let response = client
             .get(&platform_info.download_url)
             .send()
             .await
             .with_context(|| format!("Failed to download from {}", platform_info.download_url))
-            .map_err(|e| AppError::HandbrakeError(e.to_string()))?;
+            .map_err(|e| {
+                warn!("HTTP request failed: {}", e);
+                AppError::HandbrakeError(e.to_string())
+            })?;
+
+        info!("HTTP Response Status: {}", response.status());
+        info!("Response Headers: {:#?}", response.headers());
 
         if !response.status().is_success() {
-            return Err(AppError::HandbrakeError(format!(
-                "Failed to download HandBrake: HTTP {}",
-                response.status()
-            )));
+            let error_msg = format!("Failed to download HandBrake: HTTP {}", response.status());
+            warn!("{}", error_msg);
+            return Err(AppError::HandbrakeError(error_msg));
         }
 
-        let bytes = response
-            .bytes()
-            .await
-            .with_context(|| "Failed to read download response")
-            .map_err(|e| AppError::HandbrakeError(e.to_string()))?;
+        // Get content length for progress tracking
+        let content_length = response.content_length();
+        if let Some(length) = content_length {
+            info!(
+                "Download size: {} bytes ({:.2} MB)",
+                length,
+                length as f64 / 1024.0 / 1024.0
+            );
+        } else {
+            info!("Download size: unknown (no Content-Length header)");
+        }
+
+        info!("Starting streaming download...");
+        let mut stream = response.bytes_stream();
+        let mut downloaded_bytes = Vec::new();
+        let mut total_downloaded = 0u64;
+
+        // Stream the download with progress tracking
+        use futures_util::StreamExt;
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk
+                .with_context(|| "Failed to read chunk from download stream")
+                .map_err(|e| {
+                    warn!("Failed to read chunk: {}", e);
+                    AppError::HandbrakeError(e.to_string())
+                })?;
+
+            downloaded_bytes.extend_from_slice(&chunk);
+            total_downloaded += chunk.len() as u64;
+
+            // Update progress and log
+            if let Some(total_size) = content_length {
+                let download_progress = total_downloaded as f64 / total_size as f64;
+                self.update_progress(HandBrakePhase::Downloading, download_progress as f32);
+                if total_downloaded % (1024 * 1024) == 0 || download_progress >= 0.99 {
+                    // Log every MB or at completion
+                    info!(
+                        "Download progress: {:.1}% ({}/{} bytes)",
+                        download_progress * 100.0,
+                        total_downloaded,
+                        total_size
+                    );
+                }
+            } else {
+                // Without content length, estimate progress based on downloaded size
+                let download_progress =
+                    (total_downloaded as f64 / (20.0 * 1024.0 * 1024.0)).min(1.0); // Assume ~20MB max
+                self.update_progress(HandBrakePhase::Downloading, download_progress as f32);
+                if total_downloaded % (1024 * 1024) == 0 {
+                    // Log every MB
+                    info!("Downloaded: {} bytes", total_downloaded);
+                }
+            }
+        }
+
+        let bytes = bytes::Bytes::from(downloaded_bytes);
+        info!("Download complete. Total downloaded: {} bytes", bytes.len());
 
         // Verify checksum if available
         if let Some(expected_hash) = &platform_info.expected_sha256 {
+            info!("Verifying checksum...");
             let mut hasher = Sha256::new();
             hasher.update(&bytes);
             let actual_hash = format!("{:x}", hasher.finalize());
 
             if &actual_hash != expected_hash {
-                return Err(AppError::HandbrakeError(format!(
+                let error_msg = format!(
                     "Checksum verification failed. Expected: {}, Got: {}",
                     expected_hash, actual_hash
-                )));
+                );
+                warn!("{}", error_msg);
+                return Err(AppError::HandbrakeError(error_msg));
             }
-            debug!("Checksum verification passed");
+            info!("Checksum verification passed");
+        } else {
+            info!("No checksum provided, skipping verification");
         }
 
+        info!("Extracting HandBrake binary...");
+        self.update_progress(HandBrakePhase::Extracting, 0.0);
         self.extract_binary(&bytes, &platform_info).await?;
+        self.update_progress(HandBrakePhase::Verifying, 0.0);
 
-        info!("HandBrake downloaded and cached successfully");
+        info!("=== HandBrake Download Complete ===");
         Ok(())
     }
 
@@ -159,57 +296,280 @@ impl HandBrakeManager {
         cursor: std::io::Cursor<&[u8]>,
         platform_info: &PlatformInfo,
     ) -> Result<()> {
+        info!("Opening ZIP archive for extraction...");
         let mut archive = ZipArchive::new(cursor)
             .with_context(|| "Failed to open ZIP archive")
-            .map_err(|e| AppError::HandbrakeError(e.to_string()))?;
+            .map_err(|e| {
+                warn!("Failed to open ZIP archive: {}", e);
+                AppError::HandbrakeError(e.to_string())
+            })?;
+
+        info!("ZIP archive contains {} files", archive.len());
+
+        // List all files in the archive for debugging
+        for i in 0..archive.len() {
+            if let Ok(file) = archive.by_index(i) {
+                info!("Archive file {}: {}", i, file.name());
+            }
+        }
 
         // Look for HandBrake.exe in the archive
+        info!("Looking for HandBrake executable in archive...");
         for i in 0..archive.len() {
             let mut file = archive
                 .by_index(i)
                 .with_context(|| format!("Failed to access file {} in archive", i))
-                .map_err(|e| AppError::HandbrakeError(e.to_string()))?;
+                .map_err(|e| {
+                    warn!("Failed to access archive file {}: {}", i, e);
+                    AppError::HandbrakeError(e.to_string())
+                })?;
 
-            if file.name().ends_with("HandBrake.exe") {
+            let file_name = file.name();
+            info!("Checking file: {}", file_name);
+
+            if file_name.ends_with("HandBrake.exe")
+                || file_name.ends_with(&platform_info.binary_name)
+            {
+                info!("Found HandBrake executable: {}", file_name);
                 let target_path = self.cache_dir.join(&platform_info.binary_name);
+                info!("Extracting to: {}", target_path.display());
+
                 let mut output = fs::File::create(&target_path)
                     .with_context(|| format!("Failed to create file: {}", target_path.display()))
-                    .map_err(|e| AppError::HandbrakeError(e.to_string()))?;
+                    .map_err(|e| {
+                        warn!("Failed to create output file: {}", e);
+                        AppError::HandbrakeError(e.to_string())
+                    })?;
 
-                std::io::copy(&mut file, &mut output)
-                    .with_context(|| "Failed to extract HandBrake.exe")
-                    .map_err(|e| AppError::HandbrakeError(e.to_string()))?;
+                let bytes_copied = std::io::copy(&mut file, &mut output)
+                    .with_context(|| "Failed to extract HandBrake executable")
+                    .map_err(|e| {
+                        warn!("Failed to extract executable: {}", e);
+                        AppError::HandbrakeError(e.to_string())
+                    })?;
 
-                info!("Extracted HandBrake.exe to: {}", target_path.display());
+                info!(
+                    "Successfully extracted {} bytes to: {}",
+                    bytes_copied,
+                    target_path.display()
+                );
+
+                // Make executable on Unix systems
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let mut perms = fs::metadata(&target_path)
+                        .map_err(|e| {
+                            AppError::HandbrakeError(format!("Failed to get file metadata: {}", e))
+                        })?
+                        .permissions();
+                    perms.set_mode(0o755); // rwxr-xr-x
+                    fs::set_permissions(&target_path, perms).map_err(|e| {
+                        AppError::HandbrakeError(format!(
+                            "Failed to set executable permissions: {}",
+                            e
+                        ))
+                    })?;
+                    info!("Set executable permissions on {}", target_path.display());
+                }
+
                 return Ok(());
             }
         }
 
-        Err(AppError::HandbrakeError(
-            "HandBrake.exe not found in downloaded archive".to_string(),
-        ))
+        let error_msg = format!(
+            "HandBrake executable not found in downloaded archive. Looking for: {}",
+            platform_info.binary_name
+        );
+        warn!("{}", error_msg);
+        Err(AppError::HandbrakeError(error_msg))
     }
 
-    async fn extract_from_dmg(
-        &self,
-        _dmg_bytes: &[u8],
-        _platform_info: &PlatformInfo,
-    ) -> Result<()> {
-        // For macOS, we'll use a simpler approach: instruct users to install via Homebrew
-        // or provide a more complex DMG extraction (which requires additional dependencies)
-        warn!("DMG extraction not implemented. Falling back to system installation check.");
+    async fn extract_from_dmg(&self, dmg_bytes: &[u8], platform_info: &PlatformInfo) -> Result<()> {
+        info!("=== macOS DMG Extraction ===");
+        info!("Received DMG file: {} bytes", dmg_bytes.len());
 
-        // Check if user has Homebrew and can install HandBrake
-        if Command::new("brew").arg("--version").output().is_ok() {
-            return Err(AppError::HandbrakeError(
-                "HandBrake not found. Please install it using: brew install handbrake".to_string(),
-            ));
+        // Write DMG to temporary file
+        self.update_progress(HandBrakePhase::Extracting, 0.0);
+        let temp_dmg = self.cache_dir.join("handbrake_temp.dmg");
+        std::fs::write(&temp_dmg, dmg_bytes).map_err(|e| {
+            AppError::HandbrakeError(format!("Failed to write DMG to temporary file: {}", e))
+        })?;
+        info!("Wrote DMG to: {}", temp_dmg.display());
+
+        // Mount the DMG
+        info!("Mounting DMG...");
+        let mount_output = Command::new("hdiutil")
+            .args(["attach", "-nobrowse", "-readonly"])
+            .arg(&temp_dmg)
+            .output()
+            .map_err(|e| AppError::HandbrakeError(format!("Failed to mount DMG: {}", e)))?;
+
+        if !mount_output.status.success() {
+            let error = String::from_utf8_lossy(&mount_output.stderr);
+            warn!("Failed to mount DMG: {}", error);
+            return Err(AppError::HandbrakeError(format!(
+                "Failed to mount DMG: {}",
+                error
+            )));
         }
 
-        Err(AppError::HandbrakeError(
-            "HandBrake not found. Please download and install HandBrake from https://handbrake.fr/"
-                .to_string(),
-        ))
+        let mount_info = String::from_utf8_lossy(&mount_output.stdout);
+        info!("Mount output: {}", mount_info);
+
+        // Parse mount point from output
+        let mount_point = mount_info
+            .lines()
+            .filter_map(|line| {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 3 && parts[0].starts_with("/dev/disk") {
+                    Some(parts[2])
+                } else {
+                    None
+                }
+            })
+            .next()
+            .ok_or_else(|| {
+                AppError::HandbrakeError("Could not determine mount point".to_string())
+            })?;
+
+        info!("DMG mounted at: {}", mount_point);
+
+        // Find HandBrake.app in the mounted volume
+        let app_path = std::path::Path::new(mount_point).join("HandBrake.app");
+        if !app_path.exists() {
+            // Try to find it with different case or location
+            let mount_dir = std::fs::read_dir(mount_point).map_err(|e| {
+                AppError::HandbrakeError(format!("Failed to read mount directory: {}", e))
+            })?;
+
+            let mut found_app = None;
+            for entry in mount_dir {
+                let entry = entry?;
+                let name = entry.file_name();
+                if name.to_string_lossy().to_lowercase().contains("handbrake")
+                    && name.to_string_lossy().ends_with(".app")
+                {
+                    found_app = Some(entry.path());
+                    break;
+                }
+            }
+
+            let app_path = found_app.ok_or_else(|| {
+                AppError::HandbrakeError("HandBrake.app not found in DMG".to_string())
+            })?;
+
+            info!("Found HandBrake app at: {}", app_path.display());
+        }
+
+        // Extract HandBrakeCLI from the app bundle - try multiple possible locations
+        let possible_cli_paths = vec![
+            app_path.join("Contents/MacOS/HandBrakeCLI"),
+            app_path.join("Contents/Resources/HandBrakeCLI"),
+            app_path.join("HandBrakeCLI"),
+            app_path.join("Contents/MacOS/HandBrake"),
+        ];
+
+        let mut cli_source = None;
+        for path in &possible_cli_paths {
+            info!("Checking for HandBrakeCLI at: {}", path.display());
+            if path.exists() {
+                cli_source = Some(path.clone());
+                break;
+            }
+        }
+
+        let cli_source = match cli_source {
+            Some(path) => path,
+            None => {
+                // List contents of app bundle for debugging
+                if let Ok(contents_dir) = std::fs::read_dir(&app_path.join("Contents")) {
+                    info!("Contents of {}/Contents:", app_path.display());
+                    for entry in contents_dir {
+                        if let Ok(entry) = entry {
+                            info!("  {}", entry.file_name().to_string_lossy());
+                        }
+                    }
+                }
+
+                if let Ok(macos_dir) = std::fs::read_dir(&app_path.join("Contents/MacOS")) {
+                    info!("Contents of {}/Contents/MacOS:", app_path.display());
+                    for entry in macos_dir {
+                        if let Ok(entry) = entry {
+                            info!("  {}", entry.file_name().to_string_lossy());
+                        }
+                    }
+                }
+
+                let error_msg = format!(
+                    "HandBrakeCLI not found in any expected locations within {}. Tried: {}",
+                    app_path.display(),
+                    possible_cli_paths
+                        .iter()
+                        .map(|p| p.to_string_lossy())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                warn!("{}", error_msg);
+
+                // Unmount before returning error
+                let _ = Command::new("hdiutil")
+                    .args(["detach"])
+                    .arg(mount_point)
+                    .output();
+                std::fs::remove_file(&temp_dmg).ok();
+
+                return Err(AppError::HandbrakeError(error_msg));
+            }
+        };
+
+        info!("Found HandBrakeCLI at: {}", cli_source.display());
+        self.update_progress(HandBrakePhase::Installing, 0.0);
+
+        // Copy HandBrakeCLI to our cache directory
+        let cli_dest = self.cache_dir.join(&platform_info.binary_name);
+        std::fs::copy(&cli_source, &cli_dest)
+            .map_err(|e| AppError::HandbrakeError(format!("Failed to copy HandBrakeCLI: {}", e)))?;
+
+        // Make it executable
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&cli_dest)?.permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&cli_dest, perms)?;
+        }
+
+        info!(
+            "Successfully copied HandBrakeCLI to: {}",
+            cli_dest.display()
+        );
+
+        // Unmount the DMG
+        info!("Unmounting DMG...");
+        let unmount_output = Command::new("hdiutil")
+            .args(["detach"])
+            .arg(mount_point)
+            .output();
+
+        if let Ok(output) = unmount_output {
+            if output.status.success() {
+                info!("DMG unmounted successfully");
+            } else {
+                warn!(
+                    "Failed to unmount DMG: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+        }
+
+        // Clean up temporary DMG file
+        if let Err(e) = std::fs::remove_file(&temp_dmg) {
+            warn!("Failed to remove temporary DMG file: {}", e);
+        }
+
+        info!("macOS DMG extraction completed successfully");
+        Ok(())
     }
 
     fn get_platform_info() -> Result<PlatformInfo> {
@@ -246,7 +606,7 @@ impl HandBrakeManager {
                     "{}/{}/HandBrake-{}.dmg",
                     HANDBRAKE_BASE_URL, version, version
                 ),
-                binary_name: "HandBrake".to_string(),
+                binary_name: "HandBrakeCLI".to_string(),
                 expected_sha256: None,
             })
         }
@@ -281,22 +641,66 @@ impl HandBrakeManager {
     }
 
     pub async fn verify_handbrake(&mut self) -> Result<String> {
+        info!("=== Verifying HandBrake Installation ===");
         let binary_path = self.get_handbrake_path().await?;
+        info!("Verifying HandBrake at: {}", binary_path.display());
 
+        // Check if file exists and is executable
+        if !binary_path.exists() {
+            let error_msg = format!("HandBrake binary not found at: {}", binary_path.display());
+            warn!("{}", error_msg);
+            return Err(AppError::HandbrakeError(error_msg));
+        }
+
+        let metadata = fs::metadata(&binary_path)
+            .map_err(|e| AppError::HandbrakeError(format!("Failed to get file metadata: {}", e)))?;
+        info!("HandBrake file size: {} bytes", metadata.len());
+
+        // Try to execute HandBrake --version
+        info!("Executing HandBrake --version...");
         let output = Command::new(&binary_path)
             .arg("--version")
             .output()
             .with_context(|| format!("Failed to execute HandBrake: {}", binary_path.display()))
-            .map_err(|e| AppError::HandbrakeError(e.to_string()))?;
+            .map_err(|e| {
+                warn!("Failed to execute HandBrake: {}", e);
+                AppError::HandbrakeError(e.to_string())
+            })?;
+
+        info!("HandBrake exit status: {}", output.status);
+        info!(
+            "HandBrake stdout: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        info!(
+            "HandBrake stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
 
         if !output.status.success() {
-            return Err(AppError::HandbrakeError(
-                "HandBrake failed to execute properly".to_string(),
-            ));
+            let error_msg = format!(
+                "HandBrake failed to execute properly. Exit code: {}, stderr: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr)
+            );
+            warn!("{}", error_msg);
+            return Err(AppError::HandbrakeError(error_msg));
         }
 
         let version_output = String::from_utf8_lossy(&output.stdout);
-        info!("HandBrake version: {}", version_output.trim());
+        let stderr_output = String::from_utf8_lossy(&output.stderr);
+
+        // HandBrakeCLI often outputs version info to stderr
+        let version_info = if !version_output.trim().is_empty() {
+            version_output.trim()
+        } else {
+            stderr_output.trim()
+        };
+
+        info!(
+            "HandBrake verification successful. Version info: {}",
+            version_info
+        );
 
         Ok(binary_path.to_string_lossy().to_string())
     }
@@ -353,11 +757,22 @@ impl HandBrakeManager {
     }
 }
 
+impl std::fmt::Debug for HandBrakeManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HandBrakeManager")
+            .field("cache_dir", &self.cache_dir)
+            .field("binary_path", &self.binary_path)
+            .field("progress_callback", &self.progress_callback.is_some())
+            .finish()
+    }
+}
+
 impl Default for HandBrakeManager {
     fn default() -> Self {
         Self::new().unwrap_or_else(|_| Self {
-            cache_dir: PathBuf::from(".handbrake_cache"),
+            cache_dir: std::env::temp_dir(),
             binary_path: None,
+            progress_callback: None,
         })
     }
 }

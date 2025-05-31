@@ -1,6 +1,9 @@
 use crate::gui::state::{UiState, UpdateStatus};
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::fs;
+use std::path::PathBuf;
+use directories::ProjectDirs;
 
 /// GitHub release information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,8 +41,8 @@ pub enum UpdateCheckResult {
 
 /// Check for updates from GitHub releases
 pub async fn check_for_updates() -> UpdateCheckResult {
-    const GITHUB_API_URL: &str = "https://api.github.com/repos/dvdripper/dvdripper/releases/latest";
-    const USER_AGENT: &str = concat!("dvd-ripper/", env!("CARGO_PKG_VERSION"));
+    const GITHUB_API_URL: &str = "https://api.github.com/repos/sleepyyui/copydvd/releases/latest";
+    const USER_AGENT: &str = concat!("copy-dvd/", env!("CARGO_PKG_VERSION"));
     
     let client = match reqwest::Client::builder()
         .user_agent(USER_AGENT)
@@ -148,19 +151,35 @@ fn find_download_url_for_platform(assets: &[GitHubAsset]) -> Option<String> {
 
 /// Check if automatic update checking is enabled
 pub fn should_check_for_updates() -> bool {
-    // TODO: Add configuration option for automatic update checking
-    true
+    // Load from config or default to true
+    match load_update_config() {
+        Ok(config) => config.auto_check_enabled,
+        Err(_) => true, // Default to enabled
+    }
 }
 
 /// Get the last update check time
 pub fn get_last_update_check() -> Option<SystemTime> {
-    // TODO: Implement persistent storage of last check time
-    None
+    match load_update_config() {
+        Ok(config) => config.last_check_time.and_then(|timestamp| {
+            UNIX_EPOCH.checked_add(Duration::from_secs(timestamp))
+        }),
+        Err(_) => None,
+    }
 }
 
 /// Set the last update check time
 pub fn set_last_update_check(time: SystemTime) {
-    // TODO: Implement persistent storage of last check time
+    let timestamp = time.duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    
+    let mut config = load_update_config().unwrap_or_default();
+    config.last_check_time = Some(timestamp);
+    
+    if let Err(e) = save_update_config(&config) {
+        eprintln!("Failed to save update check time: {}", e);
+    }
 }
 
 /// Check if enough time has passed since last update check
@@ -182,8 +201,19 @@ pub fn should_check_for_updates_now() -> bool {
     }
 }
 
-/// Perform automatic update check if needed
-pub async fn auto_check_for_updates(ui_state: &mut UiState) {
+/// Perform automatic update check if needed (returns result without UI state)
+pub async fn auto_check_for_updates() -> UpdateCheckResult {
+    if !should_check_for_updates_now() {
+        return UpdateCheckResult::UpToDate;
+    }
+    
+    let result = check_for_updates().await;
+    set_last_update_check(SystemTime::now());
+    result
+}
+
+/// Perform automatic update check if needed (with UI state mutation)
+pub async fn auto_check_for_updates_with_ui(ui_state: &mut UiState) {
     if !should_check_for_updates_now() {
         return;
     }
@@ -247,8 +277,8 @@ pub fn open_download_url(url: &str) {
 
 /// Get changelog for a specific version
 pub async fn get_changelog(version: &str) -> Result<String, String> {
-    const GITHUB_API_URL: &str = "https://api.github.com/repos/dvdripper/dvdripper/releases";
-    const USER_AGENT: &str = concat!("dvd-ripper/", env!("CARGO_PKG_VERSION"));
+    const GITHUB_API_URL: &str = "https://api.github.com/repos/sleepyyui/copydvd/releases";
+    const USER_AGENT: &str = concat!("copy-dvd/", env!("CARGO_PKG_VERSION"));
     
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
@@ -300,4 +330,72 @@ pub fn format_changelog(changelog: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// Configuration for update checking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct UpdateConfig {
+    pub auto_check_enabled: bool,
+    pub last_check_time: Option<u64>,
+}
+
+impl Default for UpdateConfig {
+    fn default() -> Self {
+        Self {
+            auto_check_enabled: true,
+            last_check_time: None,
+        }
+    }
+}
+
+/// Get the path to the update config file
+fn get_update_config_path() -> Result<PathBuf, String> {
+    let proj_dirs = ProjectDirs::from("", "", "copydvd")
+        .ok_or("Failed to get project directories")?;
+    
+    let config_dir = proj_dirs.config_dir();
+    fs::create_dir_all(config_dir)
+        .map_err(|e| format!("Failed to create config directory: {}", e))?;
+    
+    Ok(config_dir.join("update_config.json"))
+}
+
+/// Load update configuration from file
+fn load_update_config() -> Result<UpdateConfig, String> {
+    let config_path = get_update_config_path()?;
+    
+    if !config_path.exists() {
+        return Ok(UpdateConfig::default());
+    }
+    
+    let content = fs::read_to_string(&config_path)
+        .map_err(|e| format!("Failed to read config file: {}", e))?;
+    
+    serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse config file: {}", e))
+}
+
+/// Save update configuration to file
+fn save_update_config(config: &UpdateConfig) -> Result<(), String> {
+    let config_path = get_update_config_path()?;
+    
+    let content = serde_json::to_string_pretty(config)
+        .map_err(|e| format!("Failed to serialize config: {}", e))?;
+    
+    fs::write(&config_path, content)
+        .map_err(|e| format!("Failed to write config file: {}", e))
+}
+
+/// Set whether automatic update checking is enabled
+pub fn set_auto_update_enabled(enabled: bool) -> Result<(), String> {
+    let mut config = load_update_config().unwrap_or_default();
+    config.auto_check_enabled = enabled;
+    save_update_config(&config)
+}
+
+/// Get whether automatic update checking is enabled
+pub fn get_auto_update_enabled() -> bool {
+    load_update_config()
+        .map(|config| config.auto_check_enabled)
+        .unwrap_or(true)
 }

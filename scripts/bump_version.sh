@@ -49,7 +49,7 @@ sed -i.bak "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
 rm Cargo.toml.bak
 
 # Update Cargo.lock
-cargo update -p dvd_ripper
+cargo update -p copydvd
 
 echo "Version updated from $CURRENT_VERSION to $NEW_VERSION"
 echo ""

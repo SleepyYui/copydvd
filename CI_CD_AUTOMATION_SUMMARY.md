@@ -93,11 +93,11 @@ This document summarizes the comprehensive CI/CD automation system implemented f
 
 | Platform | Architecture | Status | Artifact Name |
 |----------|-------------|--------|---------------|
-| Linux | x86_64 | ✅ Supported | `dvd_ripper-linux-x86_64` |
-| Linux | aarch64 | ✅ Supported | `dvd_ripper-linux-aarch64` |
-| macOS | x86_64 (Intel) | ✅ Supported | `dvd_ripper-macos-x86_64` |
-| macOS | aarch64 (Apple Silicon) | ✅ Supported | `dvd_ripper-macos-aarch64` |
-| Windows | x86_64 | ✅ Supported | `dvd_ripper-windows-x86_64.exe` |
+| Linux | x86_64 | ✅ Supported | `copydvd-linux-x86_64` |
+| Linux | aarch64 | ✅ Supported | `copydvd-linux-aarch64` |
+| macOS | x86_64 (Intel) | ✅ Supported | `copydvd-macos-x86_64` |
+| macOS | aarch64 (Apple Silicon) | ✅ Supported | `copydvd-macos-aarch64` |
+| Windows | x86_64 | ✅ Supported | `copydvd-windows-x86_64.exe` |
 
 ## 🛡️ Quality Assurance
 
@@ -161,7 +161,7 @@ This document summarizes the comprehensive CI/CD automation system implemented f
 1. **Download Releases**:
    - Visit GitHub releases page
    - Download platform-specific binary
-   - Make executable (Unix): `chmod +x dvd_ripper-*`
+   - Make executable (Unix): `chmod +x copydvd-*`
    - Run directly or install to PATH
 
 2. **Update Process**:

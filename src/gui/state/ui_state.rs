@@ -1,7 +1,11 @@
 use crate::dvd::types::Title;
+use crate::handbrake_manager::HandBrakeManager;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::Mutex;
 
 /// UI-specific state that doesn't belong in the core app state
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct UiState {
     /// Currently active tab
     pub active_tab: Tab,
@@ -34,6 +38,67 @@ pub struct UiState {
     /// Update checking state
     pub update_status: UpdateStatus,
     pub checking_updates: bool,
+
+    /// HandBrake manager for download/management operations
+    pub handbrake_manager: Arc<Mutex<HandBrakeManager>>,
+    
+    /// HandBrake operation status
+    pub handbrake_status: HandBrakeOperationStatus,
+    
+    /// Download progress tracking for async operations
+    pub download_progress: Option<Arc<std::sync::Mutex<f32>>>,
+    
+    /// Phase progress tracking for HandBrake operations
+    pub handbrake_phase_progress: Option<Arc<std::sync::Mutex<(HandBrakeOperationStatus, f32)>>>,
+    
+    /// Toast notifications for better user feedback
+    pub toast_notifications: Vec<ToastNotification>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ToastNotification {
+    pub message: String,
+    pub toast_type: ToastType,
+    pub created_at: Instant,
+    pub duration: Duration,
+}
+
+#[derive(Debug, Clone)]
+pub enum ToastType {
+    Success,
+    Error,
+    Warning,
+    Info,
+}
+
+impl ToastNotification {
+    pub fn new(message: String, toast_type: ToastType) -> Self {
+        Self {
+            message,
+            toast_type,
+            created_at: Instant::now(),
+            duration: Duration::from_secs(5), // Default 5 seconds
+        }
+    }
+    
+    pub fn with_duration(message: String, toast_type: ToastType, duration: Duration) -> Self {
+        Self {
+            message,
+            toast_type,
+            created_at: Instant::now(),
+            duration,
+        }
+    }
+    
+    pub fn is_expired(&self) -> bool {
+        self.created_at.elapsed() > self.duration
+    }
+    
+    pub fn remaining_ratio(&self) -> f32 {
+        let elapsed = self.created_at.elapsed().as_secs_f32();
+        let total = self.duration.as_secs_f32();
+        1.0 - (elapsed / total).min(1.0)
+    }
 }
 
 /// Available tabs in the application
@@ -83,6 +148,7 @@ impl Tab {
 pub struct ConfigTemp {
     pub handbrake_path: String,
     pub encode_algo: String,
+    pub video_codec: String,
     pub thread_count: String,
     pub eject_after_rip: bool,
 
@@ -98,6 +164,23 @@ pub struct ConfigTemp {
     pub server_username: String,
     pub server_password: String,
     pub server_path: String,
+
+    // Advanced encoding options
+    pub gpu_acceleration: bool,
+    pub two_pass_encoding: bool,
+    pub fast_start: bool,
+    pub custom_args: String,
+
+    // File management options
+    pub organize_by_date: bool,
+    pub auto_cleanup: bool,
+    pub naming_pattern: String,
+
+    // Server transfer options
+    pub compress_transfer: bool,
+    pub resume_uploads: bool,
+    pub preserve_permissions: bool,
+    pub delete_after_upload: bool,
 }
 
 /// Update checking status
@@ -109,8 +192,25 @@ pub enum UpdateStatus {
     Error(String),
 }
 
+/// HandBrake operation status
+#[derive(Debug, Clone)]
+pub enum HandBrakeOperationStatus {
+    Idle,
+    CheckingStatus,
+    Downloading { progress: f32 },
+    Extracting,
+    Installing,
+    VerifyingInstallation,
+    ClearingCache,
+    Error(String),
+}
+
 impl Default for UiState {
     fn default() -> Self {
+        let handbrake_manager = HandBrakeManager::new()
+            .map(|hm| Arc::new(Mutex::new(hm)))
+            .unwrap_or_else(|_| Arc::new(Mutex::new(HandBrakeManager::default())));
+            
         Self {
             active_tab: Tab::Main,
             input_path: String::new(),
@@ -128,6 +228,11 @@ impl Default for UiState {
             show_cache_clear_dialog: false,
             update_status: UpdateStatus::Unknown,
             checking_updates: false,
+            handbrake_manager,
+            handbrake_status: HandBrakeOperationStatus::Idle,
+            download_progress: None,
+            handbrake_phase_progress: None,
+            toast_notifications: Vec::new(),
         }
     }
 }
@@ -136,8 +241,9 @@ impl Default for ConfigTemp {
     fn default() -> Self {
         Self {
             handbrake_path: String::new(),
-            encode_algo: "x264".to_string(),
-            thread_count: "4".to_string(),
+            encode_algo: "MP4".to_string(),
+            video_codec: "H.264".to_string(),
+            thread_count: "0".to_string(),
             eject_after_rip: true,
             auto_download: true,
             prefer_system: true,
@@ -148,6 +254,17 @@ impl Default for ConfigTemp {
             server_username: String::new(),
             server_password: String::new(),
             server_path: String::new(),
+            gpu_acceleration: false,
+            two_pass_encoding: false,
+            fast_start: true,
+            custom_args: String::new(),
+            organize_by_date: false,
+            auto_cleanup: true,
+            naming_pattern: "{title} - {date}".to_string(),
+            compress_transfer: true,
+            resume_uploads: true,
+            preserve_permissions: true,
+            delete_after_upload: false,
         }
     }
 }
@@ -155,6 +272,96 @@ impl Default for ConfigTemp {
 impl UiState {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Start HandBrake download operation
+    pub async fn download_handbrake(&mut self) -> Result<(), String> {
+        self.handbrake_status = HandBrakeOperationStatus::Downloading { progress: 0.0 };
+        
+        let manager = self.handbrake_manager.clone();
+        let result = {
+            let mut guard = manager.lock().await;
+            guard.get_handbrake_path().await
+        };
+        match result {
+            Ok(_) => {
+                self.handbrake_status = HandBrakeOperationStatus::Idle;
+                self.set_status("HandBrake downloaded successfully".to_string());
+                Ok(())
+            }
+            Err(e) => {
+                self.handbrake_status = HandBrakeOperationStatus::Error(e.to_string());
+                self.set_error(format!("Failed to download HandBrake: {}", e));
+                Err(e.to_string())
+            }
+        }
+    }
+
+    /// Verify HandBrake installation
+    pub async fn verify_handbrake(&mut self) -> Result<String, String> {
+        self.handbrake_status = HandBrakeOperationStatus::VerifyingInstallation;
+        
+        let manager = self.handbrake_manager.clone();
+        let result = {
+            let mut guard = manager.lock().await;
+            guard.verify_handbrake().await
+        };
+        match result {
+            Ok(path) => {
+                self.handbrake_status = HandBrakeOperationStatus::Idle;
+                self.set_status("HandBrake verification successful".to_string());
+                Ok(path)
+            }
+            Err(e) => {
+                self.handbrake_status = HandBrakeOperationStatus::Error(e.to_string());
+                self.set_error(format!("HandBrake verification failed: {}", e));
+                Err(e.to_string())
+            }
+        }
+    }
+
+    /// Clear HandBrake cache
+    pub async fn clear_handbrake_cache(&mut self) -> Result<(), String> {
+        self.handbrake_status = HandBrakeOperationStatus::ClearingCache;
+        
+        let manager = self.handbrake_manager.clone();
+        let result = {
+            let guard = manager.lock().await;
+            guard.clear_cache()
+        };
+        match result {
+            Ok(()) => {
+                self.handbrake_status = HandBrakeOperationStatus::Idle;
+                self.set_status("HandBrake cache cleared successfully".to_string());
+                Ok(())
+            }
+            Err(e) => {
+                self.handbrake_status = HandBrakeOperationStatus::Error(e.to_string());
+                self.set_error(format!("Failed to clear cache: {}", e));
+                Err(e.to_string())
+            }
+        }
+    }
+
+    /// Refresh cache information
+    pub async fn refresh_cache_info(&mut self) {
+        let manager = self.handbrake_manager.clone();
+        let result = {
+            let guard = manager.lock().await;
+            guard.get_cache_info()
+        };
+        match result {
+            Ok((cache_dir, size)) => {
+                let size_mb = size as f64 / 1024.0 / 1024.0;
+                self.config_temp.cache_info = Some((
+                    cache_dir.to_string_lossy().to_string(),
+                    format!("{:.1} MB", size_mb)
+                ));
+            }
+            Err(e) => {
+                self.set_error(format!("Failed to get cache info: {}", e));
+            }
+        }
     }
 
     /// Update selected titles when titles list changes
@@ -199,6 +406,26 @@ impl UiState {
     pub fn clear_error(&mut self) {
         self.error_message.clear();
     }
+    
+    /// Add a toast notification
+    pub fn add_toast(&mut self, message: String, toast_type: ToastType) {
+        self.toast_notifications.push(ToastNotification::new(message, toast_type));
+    }
+    
+    /// Add a toast notification with custom duration
+    pub fn add_toast_with_duration(&mut self, message: String, toast_type: ToastType, duration: Duration) {
+        self.toast_notifications.push(ToastNotification::with_duration(message, toast_type, duration));
+    }
+    
+    /// Remove expired toast notifications
+    pub fn cleanup_expired_toasts(&mut self) {
+        self.toast_notifications.retain(|toast| !toast.is_expired());
+    }
+    
+    /// Clear all toast notifications
+    pub fn clear_toasts(&mut self) {
+        self.toast_notifications.clear();
+    }
 
     /// Set status message
     pub fn set_status(&mut self, message: String) {
@@ -213,6 +440,7 @@ impl UiState {
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default();
         self.config_temp.encode_algo = config.encode_algo.clone();
+        self.config_temp.video_codec = config.video_codec.clone();
         self.config_temp.thread_count = config.thread_count.to_string();
         self.config_temp.eject_after_rip = config.eject_after_rip;
 

@@ -19,13 +19,13 @@ A high-performance, cross-platform DVD ripping application written in Rust with 
 
 Download the latest release for your platform from the [releases page](https://github.com/sleepyyui/copydvd/releases):
 
-- **Linux**: `dvd_ripper-linux-x86_64` or `dvd_ripper-linux-aarch64`
-- **macOS**: `dvd_ripper-macos-x86_64` (Intel) or `dvd_ripper-macos-aarch64` (Apple Silicon)
-- **Windows**: `dvd_ripper-windows-x86_64.exe`
+- **Linux**: `copydvd-linux-x86_64` or `copydvd-linux-aarch64`
+- **macOS**: `copydvd-macos-x86_64` (Intel) or `copydvd-macos-aarch64` (Apple Silicon)
+- **Windows**: `copydvd-windows-x86_64.exe`
 
 Make the binary executable on Unix systems:
 ```bash
-chmod +x dvd_ripper-*
+chmod +x copydvd-*
 ```
 
 ### Build from Source
@@ -42,12 +42,12 @@ chmod +x dvd_ripper-*
 #### Build Steps
 
 ```bash
-git clone https://github.com/your-repo/copydvd.git
+git clone https://github.com/sleepyyui/copydvd.git
 cd copydvd
 cargo build --release
 ```
 
-The binary will be available at `target/release/dvd_ripper` (or `.exe` on Windows).
+The binary will be available at `target/release/copydvd` (or `.exe` on Windows).
 
 ## 🖥️ Usage
 
@@ -56,7 +56,7 @@ The binary will be available at `target/release/dvd_ripper` (or `.exe` on Window
 Simply run the application to launch the graphical interface:
 
 ```bash
-./dvd_ripper
+./copydvd
 ```
 
 The GUI provides:
@@ -72,10 +72,10 @@ Use the `--cli` flag for command-line operation:
 
 ```bash
 # Basic ripping
-./dvd_ripper --cli --input /dev/dvd --output ./ripped_movies
+./copydvd --cli --input /dev/dvd --output ./ripped_movies
 
 # With specific settings
-./dvd_ripper --cli \
+./copydvd --cli \
   --input /dev/dvd \
   --output ./movies \
   --quality 20 \
@@ -83,7 +83,7 @@ Use the `--cli` flag for command-line operation:
   --threads 4
 
 # Upload after ripping
-./dvd_ripper --cli \
+./copydvd --cli \
   --input /dev/dvd \
   --output ./movies \
   --upload \
@@ -109,9 +109,9 @@ Use the `--cli` flag for command-line operation:
 ## 🔧 Configuration
 
 Configuration is stored in platform-specific locations:
-- **Linux**: `~/.config/dvd_ripper/config.json`
-- **macOS**: `~/Library/Application Support/dvd_ripper/config.json`
-- **Windows**: `%APPDATA%/dvd_ripper/config.json`
+- **Linux**: `~/.config/copydvd/config.json`
+- **macOS**: `~/Library/Application Support/copydvd/config.json`
+- **Windows**: `%APPDATA%/copydvd/config.json`
 
 Example configuration:
 ```json
@@ -259,13 +259,13 @@ cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
 ### Logs
 
 Application logs are written to:
-- **Linux**: `~/.local/share/dvd_ripper/logs/`
-- **macOS**: `~/Library/Logs/dvd_ripper/`
-- **Windows**: `%LOCALAPPDATA%/dvd_ripper/logs/`
+- **Linux**: `~/.local/share/copydvd/logs/`
+- **macOS**: `~/Library/Logs/copydvd/`
+- **Windows**: `%LOCALAPPDATA%/copydvd/logs/`
 
 Enable debug logging with:
 ```bash
-RUST_LOG=debug ./dvd_ripper
+RUST_LOG=debug ./copydvd
 ```
 
 ## 📄 License

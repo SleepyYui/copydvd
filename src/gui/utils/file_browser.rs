@@ -23,20 +23,19 @@ pub fn browse_for_output_directory(ui_state: &mut UiState) {
 
 /// Browse for HandBrake executable
 pub fn browse_for_handbrake_executable(ui_state: &mut UiState) {
-    let mut dialog = rfd::FileDialog::new()
-        .set_title("Select HandBrakeCLI Executable");
-    
+    let mut dialog = rfd::FileDialog::new().set_title("Select HandBrakeCLI Executable");
+
     // Add platform-specific filters
     #[cfg(windows)]
     {
         dialog = dialog.add_filter("Executable", &["exe"]);
     }
-    
+
     #[cfg(unix)]
     {
         dialog = dialog.add_filter("Executable", &["*"]);
     }
-    
+
     if let Some(path) = dialog.pick_file() {
         ui_state.config_temp.handbrake_path = path.to_string_lossy().to_string();
     }
@@ -55,7 +54,7 @@ pub fn browse_for_config_export() -> Option<PathBuf> {
     rfd::FileDialog::new()
         .set_title("Export Configuration")
         .add_filter("JSON", &["json"])
-        .set_file_name("dvd_ripper_config.json")
+        .set_file_name("copydvd_config.json")
         .save_file()
 }
 
@@ -79,23 +78,23 @@ pub fn browse_for_server_profile_export() -> Option<PathBuf> {
 /// Get available DVD drives on the system
 pub fn get_available_dvd_drives() -> Vec<PathBuf> {
     let mut drives = Vec::new();
-    
+
     #[cfg(windows)]
     {
         use std::ffi::OsString;
         use std::os::windows::ffi::OsStringExt;
-        
+
         unsafe {
             let drive_mask = winapi::um::fileapi::GetLogicalDrives();
             for i in 0..26 {
                 if drive_mask & (1 << i) != 0 {
                     let drive_letter = ('A' as u8 + i) as char;
                     let drive_path = format!("{}:\\", drive_letter);
-                    
+
                     let drive_type = winapi::um::fileapi::GetDriveTypeA(
-                        std::ffi::CString::new(drive_path.clone()).unwrap().as_ptr()
+                        std::ffi::CString::new(drive_path.clone()).unwrap().as_ptr(),
                     );
-                    
+
                     if drive_type == winapi::um::winbase::DRIVE_CDROM {
                         drives.push(PathBuf::from(drive_path));
                     }
@@ -103,7 +102,7 @@ pub fn get_available_dvd_drives() -> Vec<PathBuf> {
             }
         }
     }
-    
+
     #[cfg(target_os = "linux")]
     {
         // Check common mount points for optical drives
@@ -117,14 +116,14 @@ pub fn get_available_dvd_drives() -> Vec<PathBuf> {
             "/mnt/cdrom",
             "/mnt/dvd",
         ];
-        
+
         for path in &common_paths {
             let path_buf = PathBuf::from(path);
             if path_buf.exists() {
                 drives.push(path_buf);
             }
         }
-        
+
         // Also check /media and /mnt for mounted optical discs
         if let Ok(entries) = std::fs::read_dir("/media") {
             for entry in entries.flatten() {
@@ -136,7 +135,7 @@ pub fn get_available_dvd_drives() -> Vec<PathBuf> {
             }
         }
     }
-    
+
     #[cfg(target_os = "macos")]
     {
         // Check /Volumes for mounted discs
@@ -148,9 +147,10 @@ pub fn get_available_dvd_drives() -> Vec<PathBuf> {
                         // Basic heuristic to identify optical media
                         if let Some(name) = path.file_name() {
                             let name_str = name.to_string_lossy().to_lowercase();
-                            if name_str.contains("dvd") || 
-                               name_str.contains("cd") || 
-                               name_str.len() > 3 && !name_str.starts_with('.') {
+                            if name_str.contains("dvd")
+                                || name_str.contains("cd")
+                                || name_str.len() > 3 && !name_str.starts_with('.')
+                            {
                                 drives.push(path);
                             }
                         }
@@ -159,7 +159,7 @@ pub fn get_available_dvd_drives() -> Vec<PathBuf> {
             }
         }
     }
-    
+
     drives
 }
 
@@ -170,21 +170,22 @@ pub fn is_dvd_path(path: &PathBuf) -> bool {
     if video_ts.exists() && video_ts.is_dir() {
         return true;
     }
-    
+
     // Check for common DVD file patterns
     if let Ok(entries) = std::fs::read_dir(path) {
         for entry in entries.flatten() {
             if let Some(name) = entry.file_name().to_str() {
                 let name_lower = name.to_lowercase();
-                if name_lower.ends_with(".vob") || 
-                   name_lower.ends_with(".ifo") || 
-                   name_lower.ends_with(".bup") {
+                if name_lower.ends_with(".vob")
+                    || name_lower.ends_with(".ifo")
+                    || name_lower.ends_with(".bup")
+                {
                     return true;
                 }
             }
         }
     }
-    
+
     false
 }
 
@@ -202,17 +203,17 @@ pub fn validate_path(path: &str) -> Result<(), String> {
     if path.is_empty() {
         return Err("Path cannot be empty".to_string());
     }
-    
+
     let path_buf = PathBuf::from(path);
-    
+
     if !path_buf.exists() {
         return Err("Path does not exist".to_string());
     }
-    
+
     if !path_buf.is_dir() {
         return Err("Path must be a directory".to_string());
     }
-    
+
     // Try to read the directory to check permissions
     match std::fs::read_dir(&path_buf) {
         Ok(_) => Ok(()),
@@ -225,9 +226,9 @@ pub fn validate_output_directory(path: &str) -> Result<(), String> {
     if path.is_empty() {
         return Err("Output path cannot be empty".to_string());
     }
-    
+
     let path_buf = PathBuf::from(path);
-    
+
     // If parent directory doesn't exist, try to create it
     if let Some(parent) = path_buf.parent() {
         if !parent.exists() {
@@ -236,16 +237,16 @@ pub fn validate_output_directory(path: &str) -> Result<(), String> {
             }
         }
     }
-    
+
     // Create the directory if it doesn't exist
     if !path_buf.exists() {
         if let Err(e) = std::fs::create_dir_all(&path_buf) {
             return Err(format!("Cannot create output directory: {}", e));
         }
     }
-    
+
     // Check if we can write to the directory
-    let test_file = path_buf.join(".dvd_ripper_write_test");
+    let test_file = path_buf.join(".copydvd_write_test");
     match std::fs::write(&test_file, "test") {
         Ok(_) => {
             let _ = std::fs::remove_file(&test_file);

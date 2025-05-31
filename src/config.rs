@@ -9,14 +9,18 @@ use crate::error::{AppError, Result};
 /// Application configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    /// Path to HandBrakeCLI executable
+    /// Path to HandBrake executable
     pub handbrake_path: Option<PathBuf>,
 
     /// Default output directory
     pub output_dir: PathBuf,
 
-    /// Default encoding algorithm (x264 or x265)
+    /// Default output format (MP4, MKV, AVI)
     pub encode_algo: String,
+
+    /// Default video codec (x264, x265, etc.)
+    #[serde(default = "default_video_codec")]
+    pub video_codec: String,
 
     /// Whether to split chapters into separate files
     pub chapter_split: bool,
@@ -47,16 +51,16 @@ pub struct ServerConfig {
 /// HandBrake management configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HandBrakeManagementConfig {
-    /// Whether to automatically download HandBrakeCLI if not found
+    /// Whether to automatically download HandBrake if not found
     pub auto_download: bool,
 
-    /// Whether to prefer system HandBrakeCLI over managed version
+    /// Whether to prefer system HandBrake over managed version
     pub prefer_system: bool,
 
     /// Maximum cache size in MB (0 = unlimited)
     pub max_cache_size_mb: u64,
 
-    /// Whether to verify HandBrakeCLI on startup
+    /// Whether to verify HandBrake on startup
     pub verify_on_startup: bool,
 }
 
@@ -69,7 +73,8 @@ impl Default for Config {
         Self {
             handbrake_path: None,
             output_dir,
-            encode_algo: "x264".to_string(),
+            encode_algo: "MP4".to_string(),
+            video_codec: "x264".to_string(),
             chapter_split: false,
             server: None,
             eject_after_rip: true,
@@ -77,6 +82,10 @@ impl Default for Config {
             handbrake_management: HandBrakeManagementConfig::default(),
         }
     }
+}
+
+fn default_video_codec() -> String {
+    "x264".to_string()
 }
 
 impl Config {
@@ -118,7 +127,7 @@ impl Config {
 
 /// Get the base path for application directories
 fn dirs_base_path() -> Option<PathBuf> {
-    ProjectDirs::from("com", "dvdripper", "DvdRipper").map(|dirs| dirs.config_dir().to_path_buf())
+    ProjectDirs::from("com", "sleepyyui", "copydvd").map(|dirs| dirs.config_dir().to_path_buf())
 }
 
 /// Get the path to the config file

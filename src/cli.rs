@@ -1,11 +1,11 @@
 use clap::Parser;
 use std::path::PathBuf;
 
-/// DVD Ripper CLI Arguments
+/// Copy DVD CLI Arguments
 #[derive(Parser, Debug)]
 #[clap(
-    name = "DVD Ripper",
-    about = "A multi-threaded DVD ripping application with CLI support and optional GUI",
+    name = "Copy DVD",
+    about = "A multi-threaded DVD copying application with CLI support and optional GUI - copy DVDs to MP4 and other formats",
     version,
     after_help = "Note: GUI mode is available as an optional feature but may have rendering issues on some macOS systems."
 )]

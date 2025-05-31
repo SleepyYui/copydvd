@@ -1,408 +1,312 @@
 use crate::config::Config;
-use crate::gui::components::*;
-use crate::gui::state::UiState;
-use crate::gui::theme::{glass_card, tech_section, ModernTheme, StyleConstants, neon_progress_bar};
-use crate::handbrake_manager::HandBrakeManager;
+use crate::gui::state::{UiState, HandBrakeOperationStatus};
+use crate::gui::theme::{BasicTheme, Layout, styled_panel, grouped_section, full_width_button, status_indicator, StatusType};
+use crate::gui::notifications::{notify_success, notify_error, notify_info};
 use std::sync::{Arc, Mutex};
 
-/// Render the HandBrake configuration tab
 pub fn render_handbrake_tab(ui: &mut egui::Ui, ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
-    ui.columns(2, |columns| {
-        // Left column - HandBrake Management
-        columns[0].vertical(|ui| {
-            glass_card(ui, false, |ui| {
-                tech_section(ui, "HandBrake Management", Some(ModernTheme::NEON_PURPLE), |ui| {
-                    toggle_switch(
-                        ui,
-                        &mut ui_state.config_temp.auto_download,
-                        "Auto-download HandBrake if not found",
-                    );
+    ui.heading("HandBrake Management");
+    ui.separator();
 
-                    ui.add_space(StyleConstants::SPACING_XS);
-                    ui.colored_label(
-                        ModernTheme::TEXT_MUTED,
-                        "Automatically download HandBrake when needed",
-                    );
+    // Wrap content in scroll area to prevent overflow
+    egui::ScrollArea::both().show(ui, |ui| {
+        // HandBrake Status Section
+        render_handbrake_status(ui, ui_state);
 
-                    ui.add_space(StyleConstants::SPACING_SM);
+        ui.add_space(Layout::SPACING_LARGE);
 
-                    toggle_switch(
-                        ui,
-                        &mut ui_state.config_temp.prefer_system,
-                        "Prefer system HandBrake over managed version",
-                    );
+        // Management Settings Section
+        render_management_settings(ui, ui_state);
 
-                    ui.add_space(StyleConstants::SPACING_XS);
-                    ui.colored_label(
-                        ModernTheme::TEXT_MUTED,
-                        "Use system-installed HandBrake if available",
-                    );
+        ui.add_space(Layout::SPACING_LARGE);
 
-                    ui.add_space(StyleConstants::SPACING_SM);
+        // Download Settings Section
+        render_download_settings(ui, ui_state);
 
-                    toggle_switch(
-                        ui,
-                        &mut ui_state.config_temp.verify_on_startup,
-                        "Verify HandBrake on startup",
-                    );
+        ui.add_space(Layout::SPACING_LARGE);
 
-                    ui.add_space(StyleConstants::SPACING_XS);
-                    ui.colored_label(
-                        ModernTheme::TEXT_MUTED,
-                        "Check HandBrake availability when app starts",
-                    );
-                });
-            });
-
-            ui.add_space(StyleConstants::SPACING_MD);
-
-            glass_card(ui, false, |ui| {
-                tech_section(ui, "Cache Management", Some(ModernTheme::NEON_CYAN), |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label("Max cache size (MB):");
-                        ui.add(
-                            text_input(&mut ui_state.config_temp.max_cache_size_mb)
-                                .hint_text("0 = unlimited"),
-                        );
-                        ui.colored_label(ModernTheme::TEXT_MUTED, "(0 = unlimited)");
-                    });
-
-                    ui.add_space(StyleConstants::SPACING_MD);
-
-                    // Cache information display
-                    ui.label("Cache Information:");
-                    ui.indent("cache_info", |ui| {
-                        if let Some((cache_dir, cache_size)) = &ui_state.config_temp.cache_info {
-                            ui.horizontal(|ui| {
-                                ui.label("Directory:");
-                                ui.colored_label(ModernTheme::TEXT_SECONDARY, cache_dir);
-                            });
-
-                            ui.horizontal(|ui| {
-                                ui.label("Current size:");
-                                ui.colored_label(ModernTheme::TEXT_SECONDARY, cache_size);
-                            });
-                        } else {
-                            ui.colored_label(
-                                ModernTheme::TEXT_MUTED,
-                                "Cache information not available",
-                            );
-                        }
-                    });
-
-                    ui.add_space(StyleConstants::SPACING_MD);
-
-                    button_group(ui, |ui| {
-                        if ui.add(secondary_button("🔄 Refresh Info")).clicked() {
-                            refresh_cache_info(ui_state);
-                        }
-
-                        if ui.add(danger_button("🗑️ Clear Cache")).clicked() {
-                            ui_state.show_cache_clear_dialog = true;
-                        }
-                    });
-                });
-            });
-
-            ui.add_space(StyleConstants::SPACING_MD);
-
-            card_container(ui, |ui| {
-                section(ui, "⬬ Download Management", |ui| {
-                    ui.label("HandBrake Status:");
-                    ui.add_space(StyleConstants::SPACING_SM);
-
-                    let handbrake_status = check_handbrake_status(); // TODO: Implement
-                    match handbrake_status {
-                        HandBrakeStatus::SystemAvailable(ref path) => {
-                            success_display(ui, &format!("✅ System HandBrake found: {}", path));
-                        }
-                        HandBrakeStatus::ManagedAvailable(ref version) => {
-                            success_display(
-                                ui,
-                                &format!("✅ Managed HandBrake available: {}", version),
-                            );
-                        }
-                        HandBrakeStatus::NotFound => {
-                            warning_display(ui, "⚠️ HandBrake not found");
-                        }
-                        HandBrakeStatus::Downloading(progress) => {
-                            ui.horizontal(|ui| {
-                                ui.spinner();
-                                ui.label("Downloading HandBrake...");
-                            });
-                            styled_progress_bar(
-                                ui,
-                                progress,
-                                Some(&format!("{:.1}%", progress * 100.0)),
-                            );
-                        }
-                        HandBrakeStatus::Error(ref error) => {
-                            ui.colored_label(ModernTheme::ERROR, "❌ Error:");
-                            ui.colored_label(ModernTheme::TEXT_SECONDARY, error);
-                        }
-                    }
-
-                    ui.add_space(StyleConstants::SPACING_MD);
-
-                    button_group(ui, |ui| {
-                        if ui.add(primary_button("🔍 Check Status")).clicked() {
-                            check_handbrake_availability(ui_state);
-                        }
-
-                        if ui.add(secondary_button("⬬ Force Re-download")).clicked() {
-                            force_redownload_handbrake(ui_state);
-                        }
-                    });
-                });
-            });
-        });
-
-        // Right column - Advanced Settings and Information
-        columns[1].vertical(|ui| {
-            card_container(ui, |ui| {
-                section(ui, "⚙️ Advanced Settings", |ui| {
-                    ui.label("HandBrake CLI Options:");
-                    ui.indent("cli_options", |ui| {
-                        let mut custom_args = String::new(); // TODO: Add to config
-                        ui.horizontal(|ui| {
-                            ui.label("Custom arguments:");
-                            ui.add(
-                                text_input(&mut custom_args)
-                                    .hint_text("--preset 'Fast 1080p30' --encoder x264"),
-                            );
-                        });
-
-                        ui.add_space(StyleConstants::SPACING_SM);
-                        ui.colored_label(
-                            ModernTheme::TEXT_MUTED,
-                            "Additional command-line arguments for HandBrake",
-                        );
-                    });
-
-                    ui.add_space(StyleConstants::SPACING_MD);
-
-                    ui.label("Quality Presets:");
-                    ui.indent("quality_presets", |ui| {
-                        let mut quality_preset = "High Quality".to_string(); // TODO: Add to config
-                        styled_combo_box(
-                            ui,
-                            "quality_preset",
-                            &mut quality_preset,
-                            &[
-                                "Very Fast 1080p30",
-                                "Fast 1080p30",
-                                "High Quality",
-                                "Super HQ 1080p30",
-                                "Custom",
-                            ],
-                        );
-
-                        ui.add_space(StyleConstants::SPACING_SM);
-                        ui.colored_label(
-                            ModernTheme::TEXT_MUTED,
-                            "HandBrake quality preset to use for encoding",
-                        );
-                    });
-                });
-            });
-
-            ui.add_space(StyleConstants::SPACING_MD);
-
-            glass_card(ui, true, |ui| {
-                tech_section(ui, "System Information", Some(ModernTheme::NEON_GREEN), |ui| {
-                    ui.label("Platform Support:");
-                    ui.indent("platform_info", |ui| {
-                        let platform = std::env::consts::OS;
-                        let arch = std::env::consts::ARCH;
-
-                        ui.horizontal(|ui| {
-                            ui.label("Operating System:");
-                            ui.colored_label(ModernTheme::TEXT_SECONDARY, platform);
-                        });
-
-                        ui.horizontal(|ui| {
-                            ui.label("Architecture:");
-                            ui.colored_label(ModernTheme::TEXT_SECONDARY, arch);
-                        });
-
-                        let supported = matches!(
-                            (platform, arch),
-                            ("windows", "x86_64")
-                                | ("windows", "aarch64")
-                                | ("macos", _)
-                                | ("linux", "x86_64")
-                        );
-
-                        ui.horizontal(|ui| {
-                            ui.label("Auto-download supported:");
-                            if supported {
-                                ui.colored_label(ModernTheme::SUCCESS, "✅ Yes");
-                            } else {
-                                ui.colored_label(ModernTheme::WARNING, "⚠️ Limited");
-                            }
-                        });
-                    });
-
-                    ui.add_space(StyleConstants::SPACING_MD);
-
-                    ui.label("Download Information:");
-                    ui.indent("download_info", |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label("Source:");
-                            ui.colored_label(
-                                ModernTheme::TEXT_SECONDARY,
-                                "Official HandBrake releases",
-                            );
-                        });
-
-                        ui.horizontal(|ui| {
-                            ui.label("Latest version:");
-                            ui.colored_label(ModernTheme::TEXT_SECONDARY, "1.7.3");
-                            // TODO: Get from API
-                        });
-
-                        ui.horizontal(|ui| {
-                            ui.label("Size (approx):");
-                            ui.colored_label(ModernTheme::TEXT_SECONDARY, "~15-25 MB");
-                        });
-                    });
-                });
-            });
-
-            ui.add_space(StyleConstants::SPACING_MD);
-
-            card_container(ui, |ui| {
-                section(ui, "💾 Configuration", |ui| {
-                    button_group(ui, |ui| {
-                        if ui.add(success_button("💾 Save Settings")).clicked() {
-                            save_handbrake_config(ui_state, config.clone());
-                        }
-
-                        if ui.add(secondary_button("🔄 Reset")).clicked() {
-                            reset_handbrake_config(ui_state);
-                        }
-                    });
-
-                    ui.add_space(StyleConstants::SPACING_SM);
-                    ui.separator();
-                    ui.add_space(StyleConstants::SPACING_SM);
-
-                    ui.colored_label(
-                        ModernTheme::TEXT_MUTED,
-                        "Changes are applied immediately and saved automatically",
-                    );
-                });
-            });
-        });
+        // Cache Management Section
+        render_cache_management(ui, ui_state);
     });
 
-    // Cache clear confirmation dialog
+    // Cache clear confirmation dialog (outside scroll area for proper positioning)
     if ui_state.show_cache_clear_dialog {
         egui::Window::new("Clear Cache")
             .collapsible(false)
             .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
             .show(ui.ctx(), |ui| {
                 ui.label("Are you sure you want to clear the HandBrake cache?");
-                ui.add_space(StyleConstants::SPACING_SM);
-                ui.colored_label(
-                    ModernTheme::TEXT_MUTED,
-                    "This will delete all downloaded HandBrake files.",
-                );
-                ui.add_space(StyleConstants::SPACING_MD);
-
-                ui.horizontal(|ui| {
-                    if ui.add(danger_button("Clear Cache")).clicked() {
-                        clear_handbrake_cache(ui_state);
-                        ui_state.show_cache_clear_dialog = false;
-                    }
-
-                    if ui.add(secondary_button("Cancel")).clicked() {
-                        ui_state.show_cache_clear_dialog = false;
-                    }
-                });
+                ui.label("This will remove all downloaded HandBrake files.");
+                
+                ui.add_space(Layout::SPACING);
+                
+                if ui.button("Yes, Clear Cache").clicked() {
+                    clear_handbrake_cache(ui_state);
+                    ui_state.show_cache_clear_dialog = false;
+                }
+                
+                ui.add_space(Layout::SPACING_SMALL);
+                
+                if ui.button("Cancel").clicked() {
+                    ui_state.show_cache_clear_dialog = false;
+                }
             });
     }
 }
 
-#[derive(Debug, Clone)]
-enum HandBrakeStatus {
-    SystemAvailable(String),
-    ManagedAvailable(String),
-    NotFound,
-    Downloading(f32),
-    Error(String),
-}
-
-/// Check HandBrake status (placeholder)
-fn check_handbrake_status() -> HandBrakeStatus {
-    HandBrakeStatus::NotFound
-}
-
-/// Refresh cache information
-fn refresh_cache_info(ui_state: &mut UiState) {
-    // TODO: Implement cache info refresh
-    ui_state.set_status("Refreshing cache information...".to_string());
-
-    tokio::spawn(async move {
-        // Cache info refresh logic here
+fn render_handbrake_status(ui: &mut egui::Ui, ui_state: &mut UiState) {
+    styled_panel(ui, |ui| {
+        grouped_section(ui, "HandBrake Status", |ui| {
+            match &ui_state.handbrake_status {
+                HandBrakeOperationStatus::Idle => {
+                    status_indicator(ui, "Ready", StatusType::Info);
+                }
+                HandBrakeOperationStatus::CheckingStatus => {
+                    status_indicator(ui, "Checking status...", StatusType::Warning);
+                }
+                HandBrakeOperationStatus::Downloading { progress } => {
+                    status_indicator(ui, "Downloading...", StatusType::Warning);
+                    
+                    ui.add_space(Layout::SPACING_SMALL);
+                    
+                    // Simple progress bar
+                    let progress_rect = ui.allocate_space(egui::Vec2::new(ui.available_width(), 20.0)).1;
+                    ui.painter().rect_filled(
+                        progress_rect,
+                        egui::Rounding::same(Layout::ROUNDING),
+                        BasicTheme::SURFACE,
+                    );
+                    
+                    let fill_width = progress_rect.width() * progress;
+                    let fill_rect = egui::Rect::from_min_size(
+                        progress_rect.min,
+                        egui::Vec2::new(fill_width, progress_rect.height()),
+                    );
+                    ui.painter().rect_filled(
+                        fill_rect,
+                        egui::Rounding::same(Layout::ROUNDING),
+                        BasicTheme::ACCENT,
+                    );
+                    
+                    ui.label(format!("{:.1}%", progress * 100.0));
+                }
+                HandBrakeOperationStatus::Extracting => {
+                    status_indicator(ui, "Extracting...", StatusType::Warning);
+                }
+                HandBrakeOperationStatus::Installing => {
+                    status_indicator(ui, "Installing...", StatusType::Warning);
+                }
+                HandBrakeOperationStatus::VerifyingInstallation => {
+                    status_indicator(ui, "Verifying installation...", StatusType::Warning);
+                }
+                HandBrakeOperationStatus::ClearingCache => {
+                    status_indicator(ui, "Clearing cache...", StatusType::Warning);
+                }
+                HandBrakeOperationStatus::Error(err) => {
+                    status_indicator(ui, &format!("Error: {}", err), StatusType::Error);
+                }
+            }
+            
+            ui.add_space(Layout::SPACING);
+            
+            if full_width_button(ui, "Check Status").clicked() {
+                check_handbrake_availability(ui_state);
+            }
+            
+            ui.add_space(Layout::SPACING_SMALL);
+            
+            if full_width_button(ui, "Download HandBrake").clicked() {
+                download_handbrake(ui_state);
+            }
+            
+            ui.add_space(Layout::SPACING_SMALL);
+            
+            if full_width_button(ui, "Verify Installation").clicked() {
+                verify_handbrake(ui_state);
+            }
+        });
     });
 }
 
-/// Check HandBrake availability
+fn render_management_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
+    styled_panel(ui, |ui| {
+        grouped_section(ui, "Management Settings", |ui| {
+            ui.checkbox(&mut ui_state.config_temp.auto_download, "Auto-download HandBrake if not found");
+            ui.checkbox(&mut ui_state.config_temp.prefer_system, "Use system HandBrake if available");
+            ui.checkbox(&mut ui_state.config_temp.verify_on_startup, "Verify HandBrake on startup");
+            
+            ui.add_space(Layout::SPACING);
+            
+            ui.label("HandBrake executable path:");
+            
+            ui.horizontal(|ui| {
+                ui.add_sized([200.0, 20.0], egui::TextEdit::singleline(&mut ui_state.config_temp.handbrake_path));
+                
+                if ui.button("Browse").clicked() {
+                    browse_for_handbrake(ui_state);
+                }
+            });
+        });
+    });
+}
+
+fn render_download_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
+    styled_panel(ui, |ui| {
+        grouped_section(ui, "Download Settings", |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Max cache size (MB):");
+                ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut ui_state.config_temp.max_cache_size_mb));
+            });
+            
+            if let Some((cache_dir, cache_size)) = &ui_state.config_temp.cache_info {
+                ui.add_space(Layout::SPACING);
+                ui.label(format!("Current cache: {}", cache_size));
+                ui.label(format!("Location: {}", cache_dir));
+            }
+            
+            ui.add_space(Layout::SPACING);
+            
+            if full_width_button(ui, "Refresh Cache Info").clicked() {
+                refresh_cache_info(ui_state);
+            }
+            
+            ui.add_space(Layout::SPACING_SMALL);
+            
+            if full_width_button(ui, "Open Cache Folder").clicked() {
+                open_cache_folder(ui_state);
+            }
+        });
+    });
+}
+
+fn render_cache_management(ui: &mut egui::Ui, ui_state: &mut UiState) {
+    styled_panel(ui, |ui| {
+        grouped_section(ui, "Cache Management", |ui| {
+            ui.label("Manage HandBrake cache and downloads");
+            
+            ui.add_space(Layout::SPACING);
+            
+            if full_width_button(ui, "Clear Cache").clicked() {
+                ui_state.show_cache_clear_dialog = true;
+            }
+        });
+    });
+}
+
 fn check_handbrake_availability(ui_state: &mut UiState) {
-    ui_state.set_status("Checking HandBrake availability...".to_string());
-
-    // TODO: Implement HandBrake availability check
+    ui_state.handbrake_status = HandBrakeOperationStatus::CheckingStatus;
+    notify_info("Checking HandBrake availability...");
+    
+    // Spawn async task to verify HandBrake
+    let manager = ui_state.handbrake_manager.clone();
     tokio::spawn(async move {
-        // Availability check logic here
-    });
-}
-
-/// Force re-download of HandBrake
-fn force_redownload_handbrake(ui_state: &mut UiState) {
-    ui_state.set_status("Starting HandBrake re-download...".to_string());
-
-    // TODO: Implement forced re-download
-    tokio::spawn(async move {
-        // Re-download logic here
-    });
-}
-
-/// Clear HandBrake cache
-fn clear_handbrake_cache(ui_state: &mut UiState) {
-    ui_state.set_status("Clearing HandBrake cache...".to_string());
-
-    // TODO: Implement cache clearing
-    tokio::spawn(async move {
-        // Cache clearing logic here
-    });
-}
-
-/// Save HandBrake configuration
-fn save_handbrake_config(ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
-    if let Ok(mut config) = config.try_lock() {
-        config.handbrake_management.auto_download = ui_state.config_temp.auto_download;
-        config.handbrake_management.prefer_system = ui_state.config_temp.prefer_system;
-        config.handbrake_management.verify_on_startup = ui_state.config_temp.verify_on_startup;
-
-        if let Ok(cache_size) = ui_state.config_temp.max_cache_size_mb.parse::<u64>() {
-            config.handbrake_management.max_cache_size_mb = cache_size;
+        let result = {
+            let mut guard = manager.lock().await;
+            guard.verify_handbrake().await
+        };
+        
+        match result {
+            Ok(_) => notify_success("HandBrake is available and ready"),
+            Err(e) => notify_error(&format!("HandBrake check failed: {}", e)),
         }
+    });
+}
 
-        if let Err(e) = config.save() {
-            ui_state.set_error(format!("Failed to save HandBrake configuration: {}", e));
-        } else {
-            ui_state.set_status("HandBrake configuration saved successfully".to_string());
+fn download_handbrake(ui_state: &mut UiState) {
+    ui_state.handbrake_status = HandBrakeOperationStatus::Downloading { progress: 0.0 };
+    notify_info("Starting HandBrake download...");
+    
+    // Spawn async task to download HandBrake
+    let manager = ui_state.handbrake_manager.clone();
+    tokio::spawn(async move {
+        let result = {
+            let mut guard = manager.lock().await;
+            guard.get_handbrake_path().await
+        };
+        
+        match result {
+            Ok(_) => notify_success("HandBrake downloaded and installed successfully"),
+            Err(e) => notify_error(&format!("HandBrake download failed: {}", e)),
         }
+    });
+}
+
+fn verify_handbrake(ui_state: &mut UiState) {
+    ui_state.handbrake_status = HandBrakeOperationStatus::VerifyingInstallation;
+    notify_info("Verifying HandBrake installation...");
+    
+    // Spawn async task to verify HandBrake
+    let manager = ui_state.handbrake_manager.clone();
+    tokio::spawn(async move {
+        let result = {
+            let mut guard = manager.lock().await;
+            guard.verify_handbrake().await
+        };
+        
+        match result {
+            Ok(path) => notify_success(&format!("HandBrake verified at: {}", path)),
+            Err(e) => notify_error(&format!("HandBrake verification failed: {}", e)),
+        }
+    });
+}
+
+fn browse_for_handbrake(ui_state: &mut UiState) {
+    if let Some(path) = rfd::FileDialog::new()
+        .set_title("Select HandBrake Executable")
+        .pick_file()
+    {
+        ui_state.config_temp.handbrake_path = path.to_string_lossy().to_string();
     }
 }
 
-/// Reset HandBrake configuration to defaults
-fn reset_handbrake_config(ui_state: &mut UiState) {
-    ui_state.config_temp.auto_download = true;
-    ui_state.config_temp.prefer_system = true;
-    ui_state.config_temp.verify_on_startup = true;
-    ui_state.config_temp.max_cache_size_mb = "100".to_string();
-    ui_state.set_status("HandBrake configuration reset to defaults".to_string());
+fn refresh_cache_info(ui_state: &mut UiState) {
+    let manager = ui_state.handbrake_manager.clone();
+    tokio::spawn(async move {
+        let result = {
+            let guard = manager.lock().await;
+            guard.get_cache_info()
+        };
+        
+        match result {
+            Ok((cache_dir, size)) => {
+                let size_mb = size as f64 / 1024.0 / 1024.0;
+                notify_success(&format!("Cache info refreshed: {:.1} MB", size_mb));
+            }
+            Err(e) => notify_error(&format!("Failed to get cache info: {}", e)),
+        }
+    });
+}
+
+fn clear_handbrake_cache(ui_state: &mut UiState) {
+    ui_state.handbrake_status = HandBrakeOperationStatus::ClearingCache;
+    
+    let manager = ui_state.handbrake_manager.clone();
+    tokio::spawn(async move {
+        let result = {
+            let guard = manager.lock().await;
+            guard.clear_cache()
+        };
+        
+        match result {
+            Ok(()) => notify_success("HandBrake cache cleared successfully"),
+            Err(e) => notify_error(&format!("Failed to clear cache: {}", e)),
+        }
+    });
+}
+
+fn open_cache_folder(ui_state: &mut UiState) {
+    let manager = ui_state.handbrake_manager.clone();
+    tokio::spawn(async move {
+        let result = {
+            let guard = manager.lock().await;
+            guard.get_cache_info()
+        };
+        
+        match result {
+            Ok((cache_dir, _)) => {
+                let _ = open::that(cache_dir);
+            }
+            Err(e) => notify_error(&format!("Failed to open cache folder: {}", e)),
+        }
+    });
 }

@@ -77,19 +77,19 @@ impl Dvd {
             .arg("--preset") // Example: use a default preset
             .arg("Fast 1080p30")
             .arg("-e")
-            .arg(&self.config.encode_algo) // x264, x265
+            .arg(&self.config.video_codec) // x264, x265
             .arg("-q") // Quality setting
             .arg("20"); // Example quality
 
         if task.chapter_split {
-            // HandBrakeCLI might not directly split into files per chapter easily.
+            // HandBrake might not directly split into files per chapter easily.
             // This usually means ripping chapters individually.
             // For simplicity, we'll ignore this for now or assume it means something else.
             // A more complex implementation would iterate task.title.chapters and rip ranges.
             warn!("Chapter splitting requested but not fully implemented in this basic rip_title function.");
         }
 
-        // Add more HandBrakeCLI options based on self.config as needed
+        // Add more HandBrake options based on self.config as needed
         // e.g., audio tracks, subtitles, quality, encoder options
 
         cmd.stdout(Stdio::piped()); // Capture stdout
@@ -97,7 +97,7 @@ impl Dvd {
 
         let process = cmd.spawn().map_err(|e| {
             AppError::HandbrakeError(format!(
-                "Failed to start HandBrakeCLI ({}): {}",
+                "Failed to start HandBrake ({}): {}",
                 handbrake_path, e
             ))
         })?;
@@ -106,17 +106,17 @@ impl Dvd {
         // For now, just wait for completion.
 
         let output = process.wait_with_output().await.map_err(|e| {
-            AppError::HandbrakeError(format!("HandBrakeCLI execution failed: {}", e))
+            AppError::HandbrakeError(format!("HandBrake execution failed: {}", e))
         })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             warn!(
-                "HandBrakeCLI error for title {}: {}",
+                "HandBrake error for title {}: {}",
                 task.title.number, stderr
             );
             return Err(AppError::HandbrakeError(format!(
-                "HandBrakeCLI failed for title {} with status {}: {}",
+                "HandBrake failed for title {} with status {}: {}",
                 task.title.number, output.status, stderr
             )));
         }

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use thiserror::Error;
 
-/// Custom error types for the DVD ripper application
+/// Custom error types for the Copy DVD application
 #[derive(Error, Debug)]
 pub enum AppError {
     #[error("I/O error: {0}")]
@@ -10,7 +10,7 @@ pub enum AppError {
     #[error("DVD not found at path: {0}")]
     DvdNotFound(PathBuf),
 
-    #[error("HandBrake CLI not found. Please install HandBrakeCLI.")]
+    #[error("HandBrake CLI not found. Please install HandBrake.")]
     HandBrakeNotFound,
 
     #[error("Failed to parse DVD structure: {0}")]
@@ -43,7 +43,7 @@ pub enum AppError {
     #[error("Unknown error: {0}")]
     Unknown(String),
 
-    #[error("HandBrakeCLI error: {0}")]
+    #[error("HandBrake error: {0}")]
     HandbrakeError(String),
 
     #[error("DVD operation error: {0}")]
