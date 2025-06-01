@@ -266,12 +266,14 @@ jobs:
 
       - name: Mark build as successful
         if: steps.build.outcome == 'success'
+        shell: bash
         run: |
           echo "BUILD_SUCCESS=true" >> $GITHUB_ENV
           echo "✅ Build succeeded for target: ${{ matrix.target }}"
 
       - name: Mark build as failed  
         if: steps.build.outcome == 'failure'
+        shell: bash
         run: |
           echo "BUILD_SUCCESS=false" >> $GITHUB_ENV
           echo "❌ Build failed for target: ${{ matrix.target }}"
@@ -397,6 +399,7 @@ jobs:
 
     steps:
       - name: Debug upload URL
+        shell: bash
         run: |
           echo "Upload URL: ${{ needs.create-release.outputs.upload_url }}"
           echo "Tag name: ${{ needs.create-release.outputs.tag_name }}"
@@ -411,6 +414,7 @@ jobs:
 
       - name: Verify downloaded artifact
         if: steps.download.outcome == 'success'
+        shell: bash
         run: |
           echo "✓ Successfully downloaded artifact: ${{ matrix.asset.name }}"
           ls -la ./${{ matrix.asset.name }} || ls -la ./
@@ -428,6 +432,7 @@ jobs:
 
       - name: Report successful upload
         if: steps.download.outcome == 'success'
+        shell: bash
         run: echo "✅ Successfully uploaded ${{ matrix.asset.name }} to release"
 
       - name: Report missing asset
@@ -450,6 +455,7 @@ jobs:
 
     steps:
       - name: Completion notification
+        shell: bash
         run: |
           echo "🎉 Release ${{ needs.create-release.outputs.tag_name }} processing completed!"
           if [[ "${{ needs.build.result }}" == "success" ]]; then
