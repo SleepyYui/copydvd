@@ -1078,6 +1078,7 @@ dependencies = [
  "walkdir",
  "webbrowser",
  "which",
+ "winapi",
  "winreg 0.51.0",
  "zip",
 ]

@@ -60,6 +60,7 @@ rustix = { version = "1.0.7", features = ["process"] }
 # Platform-specific
 [target.'cfg(windows)'.dependencies]
 winreg = "0.51"
+winapi = { version = "0.3", features = ["fileapi", "winbase"] }
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.26", features = ["mount", "fs"] }
@@ -76,5 +77,5 @@ panic = "abort"
 strip = true
 
 [[bin]]
-name = "copy_dvd"
+name = "copydvd"
 path = "src/main.rs"

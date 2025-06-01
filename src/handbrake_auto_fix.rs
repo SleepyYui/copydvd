@@ -67,22 +67,32 @@ impl MacOSAutoFix {
     
     /// Set executable permissions on the binary
     fn set_executable_permissions(binary_path: &Path) -> Result<bool> {
-        use std::os::unix::fs::PermissionsExt;
-        
-        let metadata = std::fs::metadata(binary_path)
-            .map_err(|e| AppError::HandbrakeError(format!("Failed to get metadata: {}", e)))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
             
-        let mut permissions = metadata.permissions();
-        let current_mode = permissions.mode();
-        let new_mode = current_mode | 0o755;
+            let metadata = std::fs::metadata(binary_path)
+                .map_err(|e| AppError::HandbrakeError(format!("Failed to get metadata: {}", e)))?;
+                
+            let mut permissions = metadata.permissions();
+            let current_mode = permissions.mode();
+            let new_mode = current_mode | 0o755;
+            
+            if current_mode != new_mode {
+                permissions.set_mode(new_mode);
+                std::fs::set_permissions(binary_path, permissions)
+                    .map_err(|e| AppError::HandbrakeError(format!("Failed to set permissions: {}", e)))?;
+                info!("Set executable permissions (mode: {:o})", new_mode);
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        }
         
-        if current_mode != new_mode {
-            permissions.set_mode(new_mode);
-            std::fs::set_permissions(binary_path, permissions)
-                .map_err(|e| AppError::HandbrakeError(format!("Failed to set permissions: {}", e)))?;
-            info!("Set executable permissions (mode: {:o})", new_mode);
-            Ok(true)
-        } else {
+        #[cfg(not(unix))]
+        {
+            // On Windows, executable permissions are not needed
+            info!("Skipping executable permissions on Windows");
             Ok(false)
         }
     }
