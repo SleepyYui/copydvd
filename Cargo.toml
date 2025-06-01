@@ -34,7 +34,7 @@ tempfile = "3.6"
 which = "4.4"
 
 # HTTP and archive handling for HandBrake CLI management
-reqwest = { version = "0.11", features = ["stream", "json"] }
+reqwest = { version = "0.11", features = ["stream", "json", "rustls-tls"], default-features = false }
 futures-util = "0.3"
 bytes = "1.0"
 zip = "0.6"
