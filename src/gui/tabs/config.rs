@@ -4,31 +4,29 @@ use crate::gui::theme::{BasicTheme, Layout, styled_panel, grouped_section, full_
 use crate::gui::notifications::{notify_success, notify_error};
 use std::sync::{Arc, Mutex};
 use serde::{Serialize, Deserialize};
+use num_cpus;
 
 pub fn render_config_tab(ui: &mut egui::Ui, ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
     ui.heading("Configuration");
     ui.separator();
 
-    // Wrap content in scroll area to prevent overflow
-    egui::ScrollArea::both().show(ui, |ui| {
-        // DVD Settings
-        render_dvd_settings(ui, ui_state);
-        
-        ui.add_space(Layout::SPACING_LARGE);
+    // DVD Settings
+    render_dvd_settings(ui, ui_state);
+    
+    ui.add_space(Layout::SPACING_LARGE);
 
-        // Output Settings
-        render_output_settings(ui, ui_state);
-        
-        ui.add_space(Layout::SPACING_LARGE);
+    // Output Settings
+    render_output_settings(ui, ui_state);
+    
+    ui.add_space(Layout::SPACING_LARGE);
 
-        // Quality Settings
-        render_quality_settings(ui, ui_state);
-        
-        ui.add_space(Layout::SPACING_LARGE);
+    // Quality Settings
+    render_quality_settings(ui, ui_state);
+    
+    ui.add_space(Layout::SPACING_LARGE);
 
-        // Save/Load Settings
-        render_config_actions(ui, ui_state, config);
-    });
+    // Save/Load Settings
+    render_config_actions(ui, ui_state, config);
 }
 
 fn render_dvd_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
@@ -143,6 +141,12 @@ fn render_config_actions(ui: &mut egui::Ui, ui_state: &mut UiState, config: Arc<
             if full_width_button(ui, "Import Config").clicked() {
                 import_config(ui_state);
             }
+            
+            ui.add_space(Layout::SPACING);
+            
+            if full_width_button(ui, "Open App Cache Folder").clicked() {
+                open_app_cache_folder();
+            }
         });
     });
 }
@@ -236,7 +240,20 @@ fn save_config(ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
         config.output_dir = ui_state.output_path.clone().into();
         config.encode_algo = ui_state.config_temp.encode_algo.clone();
         config.video_codec = ui_state.config_temp.video_codec.clone();
-        config.thread_count = ui_state.config_temp.thread_count.parse().unwrap_or(0);
+        config.thread_count = ui_state.config_temp.thread_count.parse().unwrap_or(num_cpus::get().max(1));
+        config.eject_after_rip = ui_state.config_temp.eject_after_rip;
+        config.chapter_split = ui_state.chapter_split;
+        
+        // Update HandBrake path if provided
+        if !ui_state.config_temp.handbrake_path.is_empty() {
+            config.handbrake_path = Some(ui_state.config_temp.handbrake_path.clone().into());
+        }
+        
+        // Update HandBrake management settings
+        config.handbrake_management.auto_download = ui_state.config_temp.auto_download;
+        config.handbrake_management.prefer_system = ui_state.config_temp.prefer_system;
+        config.handbrake_management.max_cache_size_mb = ui_state.config_temp.max_cache_size_mb.parse().unwrap_or(100);
+        config.handbrake_management.verify_on_startup = ui_state.config_temp.verify_on_startup;
         
         if let Err(e) = config.save() {
             notify_error(&format!("Failed to save config: {}", e));
@@ -252,6 +269,11 @@ fn load_config(ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
     if let Ok(config) = config.try_lock() {
         // Load config into UI state
         ui_state.load_config_temp(&config);
+        
+        // Also update UI-specific fields that aren't in config_temp
+        ui_state.output_path = config.output_dir.to_string_lossy().to_string();
+        ui_state.chapter_split = config.chapter_split;
+        
         notify_success("Configuration loaded successfully");
     } else {
         notify_error("Failed to load configuration");
@@ -310,5 +332,28 @@ fn import_config(ui_state: &mut UiState) {
             }
             Err(e) => notify_error(&format!("Failed to read config file: {}", e)),
         }
+    }
+}
+
+fn open_app_cache_folder() {
+    use directories::ProjectDirs;
+    
+    if let Some(project_dirs) = ProjectDirs::from("com", "sleepyyui", "copydvd") {
+        let cache_dir = project_dirs.cache_dir();
+        
+        // Create cache directory if it doesn't exist
+        if let Err(e) = std::fs::create_dir_all(cache_dir) {
+            notify_error(&format!("Failed to create cache directory: {}", e));
+            return;
+        }
+        
+        // Open the cache directory
+        if let Err(e) = open::that(cache_dir) {
+            notify_error(&format!("Failed to open cache folder: {}", e));
+        } else {
+            notify_success(&format!("Opened app cache folder: {}", cache_dir.display()));
+        }
+    } else {
+        notify_error("Failed to determine app cache directory");
     }
 }

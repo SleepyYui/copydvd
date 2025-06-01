@@ -4,6 +4,7 @@ use crate::gui::theme::apply_theme;
 use crate::gui::state::{UiState, Tab, UpdateStatus};
 use crate::gui::tabs::*;
 use crate::gui::utils::updates::{auto_check_for_updates, UpdateCheckResult};
+use crate::handbrake_manager::HandBrakeManager;
 
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -15,6 +16,13 @@ pub mod tabs;
 pub mod utils;
 pub mod state;
 pub mod notifications;
+
+#[derive(Debug)]
+pub enum HandBrakeStatus {
+    Verifying,
+    Verified(String), // Binary path
+    Error(String),    // Error message
+}
 
 /// Main entry point for the simple GUI application
 pub fn run() -> eframe::Result<()> {
@@ -51,11 +59,36 @@ struct CopyDvdApp {
     config: Arc<Mutex<Config>>,
     first_frame: bool,
     update_receiver: Receiver<UpdateCheckResult>,
+    handbrake_receiver: Receiver<HandBrakeStatus>,
+    handbrake_status: Option<HandBrakeStatus>,
 }
 
 impl CopyDvdApp {
     fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         let (update_sender, update_receiver) = mpsc::channel();
+        let (handbrake_sender, handbrake_receiver) = mpsc::channel();
+        
+        // Start HandBrake verification immediately
+        tokio::spawn(async move {
+            let _ = handbrake_sender.send(HandBrakeStatus::Verifying);
+            
+            let mut handbrake_manager = match HandBrakeManager::new() {
+                Ok(manager) => manager,
+                Err(e) => {
+                    let _ = handbrake_sender.send(HandBrakeStatus::Error(format!("Failed to initialize HandBrake manager: {}", e)));
+                    return;
+                }
+            };
+            
+            match handbrake_manager.verify_handbrake().await {
+                Ok(binary_path) => {
+                    let _ = handbrake_sender.send(HandBrakeStatus::Verified(binary_path));
+                }
+                Err(e) => {
+                    let _ = handbrake_sender.send(HandBrakeStatus::Error(e.to_string()));
+                }
+            }
+        });
         
         Self {
             app_state: Arc::new(Mutex::new(AppState::new(Config::default()))),
@@ -63,10 +96,14 @@ impl CopyDvdApp {
             config: Arc::new(Mutex::new(Config::default())),
             first_frame: true,
             update_receiver,
+            handbrake_receiver,
+            handbrake_status: None,
         }
     }
 
     fn update_status(&mut self, ctx: &egui::Context) {
+        self.check_for_handbrake_status();
+        
         if let Ok(state) = self.app_state.try_lock() {
             // Note: AppState doesn't have an error field, so we'll skip this check
             // if let Some(error) = &state.error {
@@ -88,6 +125,13 @@ impl CopyDvdApp {
             });
             
             self.first_frame = false;
+        }
+    }
+
+    fn check_for_handbrake_status(&mut self) {
+        // Non-blocking check for HandBrake verification results
+        if let Ok(status) = self.handbrake_receiver.try_recv() {
+            self.handbrake_status = Some(status);
         }
     }
 
@@ -169,6 +213,35 @@ impl CopyDvdApp {
         ui.separator();
     }
 
+    fn trigger_dvd_scan(&mut self) {
+        use crate::gui::notifications::notify_info;
+        
+        if self.ui_state.input_path.is_empty() {
+            notify_info("Please select a DVD input path first");
+            return;
+        }
+        
+        notify_info("Starting DVD scan...");
+        
+        // Clear previous titles
+        self.ui_state.titles.clear();
+        
+        // In a real implementation, this would spawn an async task
+        // For now, we'll simulate finding titles
+        // TODO: Implement actual async DVD scanning with HandBrake integration
+        let input_path = self.ui_state.input_path.clone();
+        
+        // Simulate async DVD scanning
+        tokio::spawn(async move {
+            // This would call the actual DVD scanning logic
+            // let mut dvd = Dvd::new(PathBuf::from(input_path), config, handbrake_manager);
+            // let result = dvd.scan_titles().await;
+            
+            // For now, just log that scanning would happen
+            tracing::info!("Would scan DVD at: {}", input_path);
+        });
+    }
+
 
 }
 
@@ -189,7 +262,120 @@ impl eframe::App for CopyDvdApp {
             // Main content area
             egui::ScrollArea::both()
                 .auto_shrink([false, false])
+                .id_source("main_content_scroll")
                 .show(ui, |ui| {
+                    // HandBrake status display at top
+                    if let Some(ref handbrake_status) = self.handbrake_status {
+                        match handbrake_status {
+                            HandBrakeStatus::Verifying => {
+                                ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "🔍 Verifying HandBrake installation...");
+                                ui.separator();
+                            }
+                            HandBrakeStatus::Verified(path) => {
+                                ui.colored_label(egui::Color32::from_rgb(0, 150, 0), format!("✅ HandBrake verified: {}", path));
+                                ui.separator();
+                            }
+                            HandBrakeStatus::Error(error) => {
+                                let error_clone = error.clone();
+                                
+                                // Check if automatic fixes were attempted
+                                let auto_fixes_attempted = error_clone.contains("Automatic security fixes were attempted");
+                                
+                                if auto_fixes_attempted {
+                                    ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "⚡ HandBrake Auto-Fix Attempted:");
+                                    ui.label("The application automatically tried to resolve macOS security issues.");
+                                } else {
+                                    ui.colored_label(egui::Color32::from_rgb(200, 50, 50), "❌ HandBrake Error:");
+                                }
+                                ui.separator();
+                                
+                                // Create a scrollable area for the error message
+                                egui::ScrollArea::vertical()
+                                    .max_height(200.0)
+                                    .show(ui, |ui| {
+                                        let mut error_text = error.as_str();
+                                        ui.add(egui::TextEdit::multiline(&mut error_text)
+                                            .desired_width(f32::INFINITY)
+                                            .font(egui::TextStyle::Monospace));
+                                    });
+                                
+                                ui.separator();
+                                
+                                ui.horizontal(|ui| {
+                                    // Add retry button with different text based on auto-fixes
+                                    let button_text = if auto_fixes_attempted {
+                                        "🔄 Retry After Auto-Fix"
+                                    } else {
+                                        "🔄 Retry HandBrake Verification"
+                                    };
+                                    
+                                    if ui.button(button_text).clicked() {
+                                        self.handbrake_status = None;
+                                        let (handbrake_sender, handbrake_receiver) = mpsc::channel();
+                                        self.handbrake_receiver = handbrake_receiver;
+                                        
+                                        tokio::spawn(async move {
+                                            let _ = handbrake_sender.send(HandBrakeStatus::Verifying);
+                                            
+                                            let mut handbrake_manager = match HandBrakeManager::new() {
+                                                Ok(manager) => manager,
+                                                Err(e) => {
+                                                    let _ = handbrake_sender.send(HandBrakeStatus::Error(format!("Failed to initialize HandBrake manager: {}", e)));
+                                                    return;
+                                                }
+                                            };
+                                            
+                                            match handbrake_manager.verify_handbrake().await {
+                                                Ok(binary_path) => {
+                                                    let _ = handbrake_sender.send(HandBrakeStatus::Verified(binary_path));
+                                                }
+                                                Err(e) => {
+                                                    let _ = handbrake_sender.send(HandBrakeStatus::Error(e.to_string()));
+                                                }
+                                            }
+                                        });
+                                    }
+                                    
+                                    // Add macOS-specific System Preferences button - always show on macOS
+                                    #[cfg(target_os = "macos")]
+                                    if ui.button("🔧 Open Security Settings").clicked() {
+                                        tokio::spawn(async {
+                                            // Try multiple methods to open Security preferences
+                                            let methods = [
+                                                ("open", vec!["-b", "com.apple.systempreferences", "/System/Library/PreferencePanes/Security.prefPane"]),
+                                                ("open", vec!["/System/Library/PreferencePanes/Security.prefPane"]),
+                                                ("open", vec!["-a", "System Preferences"]),
+                                            ];
+                                            
+                                            for (cmd, args) in &methods {
+                                                if std::process::Command::new(cmd).args(args).spawn().is_ok() {
+                                                    break;
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
+                                
+                                // Show helpful status message for auto-fixes
+                                if auto_fixes_attempted {
+                                    ui.separator();
+                                    ui.colored_label(egui::Color32::from_rgb(100, 150, 255), "💡 What happened:");
+                                    ui.label("• Removed quarantine attributes automatically");
+                                    ui.label("• Set executable permissions");
+                                    ui.label("• Attempted to open Security preferences");
+                                    ui.label("• Triggered macOS security dialog");
+                                    ui.add_space(5.0);
+                                    ui.colored_label(egui::Color32::from_rgb(255, 200, 100), "➡️ Next steps:");
+                                    ui.label("1. Click 'Retry After Auto-Fix' above");
+                                    ui.label("2. If still blocked, use 'Open Security Settings'");
+                                    ui.label("3. Look for 'Allow Anyway' button in Security settings");
+                                }
+                                
+                                ui.separator();
+                            }
+                        }
+                    }
+                    
                     // Error display at top
                     if !self.ui_state.error_message.is_empty() {
                         ui.colored_label(egui::Color32::from_rgb(180, 60, 60), &self.ui_state.error_message);
@@ -220,7 +406,7 @@ impl eframe::App for CopyDvdApp {
         // Keyboard shortcuts
         if ctx.input(|i| i.key_pressed(egui::Key::F5)) {
             if self.ui_state.active_tab == Tab::Main {
-                // TODO: Trigger DVD scan
+                self.trigger_dvd_scan();
             }
         }
         

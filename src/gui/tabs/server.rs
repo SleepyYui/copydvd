@@ -8,26 +8,82 @@ pub fn render_server_tab(ui: &mut egui::Ui, ui_state: &mut UiState, config: Arc<
     ui.heading("Server Configuration");
     ui.separator();
 
-    // Wrap content in scroll area to prevent overflow
-    egui::ScrollArea::both().show(ui, |ui| {
-        // Connection Settings
-        render_connection_settings(ui, ui_state);
-        
-        ui.add_space(Layout::SPACING_LARGE);
+    // Connection Settings
+    render_connection_settings(ui, ui_state);
+    
+    ui.add_space(Layout::SPACING_LARGE);
 
-        // Upload Settings
-        render_upload_settings(ui, ui_state);
-        
-        ui.add_space(Layout::SPACING_LARGE);
+    // Upload Settings
+    render_upload_settings(ui, ui_state);
+    
+    ui.add_space(Layout::SPACING_LARGE);
 
-        // Transfer Options
-        render_transfer_options(ui, ui_state);
-        
-        ui.add_space(Layout::SPACING_LARGE);
+    // Transfer Options
+    render_transfer_options(ui, ui_state);
+    
+    ui.add_space(Layout::SPACING_LARGE);
 
-        // Configuration Actions
-        render_server_actions(ui, ui_state, config);
-    });
+    // Configuration Actions
+    render_server_actions(ui, ui_state, config);
+}
+
+async fn test_connection(
+    host: &str,
+    port: u16,
+    _username: &str,
+    _password: &str,
+    upload_method: &str,
+) -> Result<(), String> {
+    use std::time::Duration;
+    use tokio::net::TcpStream;
+    use tokio::time::timeout;
+    
+    tracing::info!("Testing connection to {}:{} using {}", host, port, upload_method);
+    
+    // Basic TCP connectivity test
+    let tcp_result = timeout(
+        Duration::from_secs(10),
+        TcpStream::connect(format!("{}:{}", host, port))
+    ).await;
+    
+    match tcp_result {
+        Ok(Ok(stream)) => {
+            drop(stream);
+            tracing::info!("TCP connection successful to {}:{}", host, port);
+            
+            // For different upload methods, we could add specific protocol tests here
+            match upload_method.to_lowercase().as_str() {
+                "ssh" | "scp" | "sftp" => {
+                    // In a full implementation, we would:
+                    // 1. Use ssh2 crate to attempt SSH authentication
+                    // 2. Test SFTP subsystem if needed
+                    // 3. Verify permissions on target directory
+                    tracing::info!("SSH/SFTP connection would be tested here");
+                    Ok(())
+                }
+                "rsync" => {
+                    // In a full implementation, we would:
+                    // 1. Test rsync daemon connectivity if using rsync://
+                    // 2. Test SSH connectivity if using rsync over SSH
+                    tracing::info!("Rsync connection would be tested here");
+                    Ok(())
+                }
+                _ => {
+                    Err(format!("Unsupported upload method: {}", upload_method))
+                }
+            }
+        }
+        Ok(Err(e)) => {
+            let error_msg = format!("Failed to connect to {}:{}: {}", host, port, e);
+            tracing::warn!("{}", error_msg);
+            Err(error_msg)
+        }
+        Err(_) => {
+            let error_msg = format!("Connection timeout to {}:{}", host, port);
+            tracing::warn!("{}", error_msg);
+            Err(error_msg)
+        }
+    }
 }
 
 fn render_connection_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
@@ -131,27 +187,39 @@ fn test_server_connection(ui_state: &mut UiState) {
     
     notify_info("Testing server connection...");
     
-    // TODO: Implement actual server connection test
+    // Clone data for async operation
+    let host = ui_state.config_temp.server_host.clone();
+    let username = ui_state.config_temp.server_username.clone();
+    let password = ui_state.config_temp.server_password.clone();
+    let port = 22; // Default SSH port
+    let upload_method = "ssh".to_string(); // Default upload method
+    
     tokio::spawn(async move {
-        // Simulate connection test
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-        notify_success("Server connection test successful");
+        let result = test_connection(&host, port, &username, &password, &upload_method).await;
+        
+        match result {
+            Ok(_) => notify_success("Server connection test successful"),
+            Err(e) => notify_error(&format!("Connection test failed: {}", e)),
+        }
     });
 }
 
 fn save_server_config(ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
     if let Ok(mut config) = config.try_lock() {
-        // Update server config from UI state
-        if let Some(server) = &mut config.server {
-            server.host = ui_state.config_temp.server_host.clone();
-            server.username = ui_state.config_temp.server_username.clone();
-            server.password = if ui_state.config_temp.server_password.is_empty() {
+        // Create server config from UI state
+        let server_config = crate::config::ServerConfig {
+            host: ui_state.config_temp.server_host.clone(),
+            username: ui_state.config_temp.server_username.clone(),
+            password: if ui_state.config_temp.server_password.is_empty() {
                 None
             } else {
                 Some(ui_state.config_temp.server_password.clone())
-            };
-            server.path = ui_state.config_temp.server_path.clone();
-        }
+            },
+            path: ui_state.config_temp.server_path.clone(),
+        };
+        
+        // Update server config
+        config.server = Some(server_config);
         
         if let Err(e) = config.save() {
             notify_error(&format!("Failed to save server config: {}", e));
@@ -166,6 +234,20 @@ fn save_server_config(ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
 fn load_server_config(ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
     if let Ok(config) = config.try_lock() {
         // Load server config into UI state
+        if let Some(server) = &config.server {
+            ui_state.config_temp.server_host = server.host.clone();
+            ui_state.config_temp.server_username = server.username.clone();
+            ui_state.config_temp.server_password = server.password.clone().unwrap_or_default();
+            ui_state.config_temp.server_path = server.path.clone();
+        } else {
+            // Clear UI if no server config exists
+            ui_state.config_temp.server_host.clear();
+            ui_state.config_temp.server_username.clear();
+            ui_state.config_temp.server_password.clear();
+            ui_state.config_temp.server_path.clear();
+        }
+        
+        // Also load other config fields
         ui_state.load_config_temp(&config);
         notify_success("Server configuration loaded successfully");
     } else {

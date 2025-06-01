@@ -8,26 +8,23 @@ pub fn render_handbrake_tab(ui: &mut egui::Ui, ui_state: &mut UiState, config: A
     ui.heading("HandBrake Management");
     ui.separator();
 
-    // Wrap content in scroll area to prevent overflow
-    egui::ScrollArea::both().show(ui, |ui| {
-        // HandBrake Status Section
-        render_handbrake_status(ui, ui_state);
+    // HandBrake Status Section
+    render_handbrake_status(ui, ui_state);
 
-        ui.add_space(Layout::SPACING_LARGE);
+    ui.add_space(Layout::SPACING_LARGE);
 
-        // Management Settings Section
-        render_management_settings(ui, ui_state);
+    // Management Settings Section
+    render_management_settings(ui, ui_state);
 
-        ui.add_space(Layout::SPACING_LARGE);
+    ui.add_space(Layout::SPACING_LARGE);
 
-        // Download Settings Section
-        render_download_settings(ui, ui_state);
+    // Download Settings Section
+    render_download_settings(ui, ui_state);
 
-        ui.add_space(Layout::SPACING_LARGE);
+    ui.add_space(Layout::SPACING_LARGE);
 
-        // Cache Management Section
-        render_cache_management(ui, ui_state);
-    });
+    // Cache Management Section
+    render_cache_management(ui, ui_state);
 
     // Cache clear confirmation dialog (outside scroll area for proper positioning)
     if ui_state.show_cache_clear_dialog {
@@ -172,7 +169,7 @@ fn render_download_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
             
             ui.add_space(Layout::SPACING_SMALL);
             
-            if full_width_button(ui, "Open Cache Folder").clicked() {
+            if full_width_button(ui, "Open HandBrake Cache Folder").clicked() {
                 open_cache_folder(ui_state);
             }
         });
@@ -213,20 +210,60 @@ fn check_handbrake_availability(ui_state: &mut UiState) {
 }
 
 fn download_handbrake(ui_state: &mut UiState) {
-    ui_state.handbrake_status = HandBrakeOperationStatus::Downloading { progress: 0.0 };
-    notify_info("Starting HandBrake download...");
+    // Reset status if it's stuck
+    if matches!(ui_state.handbrake_status, HandBrakeOperationStatus::CheckingStatus) {
+        ui_state.handbrake_status = HandBrakeOperationStatus::Idle;
+        notify_info("Reset status and retrying...");
+        return;
+    }
+    
+    ui_state.handbrake_status = HandBrakeOperationStatus::CheckingStatus;
+    notify_info("Checking HandBrake status...");
     
     // Spawn async task to download HandBrake
     let manager = ui_state.handbrake_manager.clone();
     tokio::spawn(async move {
-        let result = {
-            let mut guard = manager.lock().await;
-            guard.get_handbrake_path().await
+        // First check if HandBrake already exists
+        let exists = {
+            let guard = manager.lock().await;
+            guard.handbrake_exists()
         };
         
-        match result {
-            Ok(_) => notify_success("HandBrake downloaded and installed successfully"),
-            Err(e) => notify_error(&format!("HandBrake download failed: {}", e)),
+        if exists {
+            notify_info("HandBrake already exists, verifying installation...");
+            let result = {
+                let mut guard = manager.lock().await;
+                guard.verify_handbrake().await
+            };
+            
+            match result {
+                Ok(_) => {
+                    notify_success("HandBrake is already installed and verified");
+                }
+                Err(_e) => {
+                    notify_info("Existing HandBrake has issues, re-downloading...");
+                    // If verification fails, proceed with download
+                    let download_result = {
+                        let mut guard = manager.lock().await;
+                        guard.get_handbrake_path().await
+                    };
+                    match download_result {
+                        Ok(_) => notify_success("HandBrake downloaded and installed successfully"),
+                        Err(e) => notify_error(&format!("HandBrake download failed: {}", e)),
+                    }
+                }
+            }
+        } else {
+            notify_info("HandBrake not found, starting download...");
+            let result = {
+                let mut guard = manager.lock().await;
+                guard.get_handbrake_path().await
+            };
+            
+            match result {
+                Ok(_) => notify_success("HandBrake downloaded and installed successfully"),
+                Err(e) => notify_error(&format!("HandBrake download failed: {}", e)),
+            }
         }
     });
 }

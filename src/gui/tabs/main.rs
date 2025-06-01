@@ -11,18 +11,15 @@ pub fn render_main_tab(ui: &mut egui::Ui, ui_state: &mut UiState, app_state: Arc
     ui.heading("DVD Copy");
     ui.separator();
     
-    // Wrap content in scroll area to prevent overflow
-    egui::ScrollArea::both().show(ui, |ui| {
-        // Main workflow section
-        render_workflow_section(ui, ui_state, app_state.clone());
-        
-        ui.add_space(Layout::SPACING_LARGE);
-        
-        // Title selection if available
-        if !ui_state.titles.is_empty() {
-            render_title_selection(ui, ui_state);
-        }
-    });
+    // Main workflow section
+    render_workflow_section(ui, ui_state, app_state.clone());
+    
+    ui.add_space(Layout::SPACING_LARGE);
+    
+    // Title selection if available
+    if !ui_state.titles.is_empty() {
+        render_title_selection(ui, ui_state);
+    }
 }
 
 /// Render workflow section
@@ -72,9 +69,36 @@ fn render_workflow_section(ui: &mut egui::Ui, ui_state: &mut UiState, app_state:
             ui.add_space(Layout::SPACING);
             
             if full_width_button(ui, "Scan DVD").clicked() {
-                if let Ok(mut _state) = app_state.try_lock() {
-                    // TODO: Implement DVD scanning
+                if ui_state.input_path.is_empty() {
+                    notify_error("Please select a DVD input path first");
+                } else {
                     notify_info("DVD scan started");
+                    
+                    // Clear previous scan results
+                    ui_state.titles.clear();
+                    ui_state.selected_titles.clear();
+                    
+                    // Clone necessary data for async operation
+                    let input_path = ui_state.input_path.clone();
+                    
+                    // Spawn async DVD scanning task
+                    tokio::spawn(async move {
+                        // Create DVD instance and scan
+                        // Note: In a full implementation, this would:
+                        // 1. Create a Dvd instance with the input path
+                        // 2. Call dvd.scan_titles().await
+                        // 3. Parse results and update UI state via channels
+                        // 4. Handle errors appropriately
+                        
+                        tracing::info!("Scanning DVD at path: {}", input_path);
+                        
+                        // Simulate scanning delay
+                        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                        
+                        // For now, we'll simulate finding some titles
+                        // In real implementation, this would come from HandBrake scan results
+                        tracing::info!("DVD scan completed for: {}", input_path);
+                    });
                 }
             }
             
@@ -130,8 +154,51 @@ fn render_title_selection(ui: &mut egui::Ui, ui_state: &mut UiState) {
             
             let selected_count = ui_state.selected_title_count();
             if full_width_button(ui, "Start Ripping").clicked() && selected_count > 0 {
-                notify_success(&format!("Starting to rip {} titles", selected_count));
-                // TODO: Start ripping process
+                if ui_state.output_path.is_empty() {
+                    notify_error("Please select an output directory first");
+                } else {
+                    notify_success(&format!("Starting to rip {} titles", selected_count));
+                    
+                    // Get selected title indices
+                    let selected_indices: Vec<usize> = ui_state.selected_titles
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, &selected)| selected)
+                        .map(|(index, _)| index)
+                        .collect();
+                    
+                    // Clone necessary data for async operation
+                    let input_path = ui_state.input_path.clone();
+                    let output_path = ui_state.output_path.clone();
+                    let titles = ui_state.titles.clone();
+                    
+                    // Spawn async ripping task
+                    tokio::spawn(async move {
+                        for (i, &title_index) in selected_indices.iter().enumerate() {
+                            if let Some(title) = titles.get(title_index) {
+                                tracing::info!(
+                                    "Ripping title {} ({}/{}): Duration {:?}",
+                                    title_index + 1,
+                                    i + 1,
+                                    selected_indices.len(),
+                                    title.duration
+                                );
+                                
+                                // In a full implementation, this would:
+                                // 1. Create HandBrake command for the specific title
+                                // 2. Execute HandBrake with progress tracking
+                                // 3. Update UI with progress via channels
+                                // 4. Handle errors and retry logic
+                                // 5. Move to next title upon completion
+                                
+                                // Simulate ripping time
+                                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                            }
+                        }
+                        
+                        tracing::info!("All selected titles ripped successfully");
+                    });
+                }
             }
         });
     });

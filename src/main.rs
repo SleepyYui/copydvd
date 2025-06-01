@@ -9,11 +9,14 @@ mod cli;
 mod config;
 mod dvd;
 mod error;
-#[cfg(feature = "gui")]
 mod gui;
 mod handbrake_manager;
+mod handbrake_auto_fix;
 mod upload;
 mod utils;
+
+#[cfg(test)]
+mod test_config;
 
 #[tokio::main]
 async fn main() -> Result<()> {
