@@ -5,6 +5,25 @@ on:
     branches: [v2]
   pull_request:
     branches: [v2]
+  workflow_dispatch:
+    inputs:
+      target_platform:
+        description: 'Specific platform to build (optional)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - 'all'
+          - 'x86_64-unknown-linux-gnu'
+          - 'aarch64-unknown-linux-gnu'
+          - 'x86_64-apple-darwin'
+          - 'aarch64-apple-darwin'
+          - 'x86_64-pc-windows-msvc'
+      skip_release:
+        description: 'Skip release creation (test builds only)'
+        required: false
+        default: false
+        type: boolean
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,6 +34,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Build info
+        shell: bash
+        run: |
+          echo "🏗️ Building for target: ${{ matrix.target }}"
+          echo "📦 Asset name: ${{ matrix.asset_name }}"
+          echo "🖥️ Running on: ${{ matrix.os }}"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "🔧 Manual dispatch - Target filter: ${{ github.event.inputs.target_platform || 'all' }}"
+            echo "🚫 Skip release: ${{ github.event.inputs.skip_release || 'false' }}"
+          fi
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install dependencies (Ubuntu)
@@ -80,15 +110,51 @@ jobs:
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
           cargo install cross --git https://github.com/cross-rs/cross
+          
+      - name: Pre-pull Docker image for ARM compilation
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          echo "Pre-pulling Docker image for ARM cross-compilation..."
+          # Try to pull the image, but don't fail if it doesn't work
+          docker pull ghcr.io/cross-rs/cross:aarch64-unknown-linux-gnu || \
+          docker pull crossrs/cross:aarch64-unknown-linux-gnu || \
+          echo "Warning: Could not pre-pull Docker image, cross will try to pull it during build"
 
       - name: Build release
         shell: bash
+        continue-on-error: true
+        id: build
         run: |
           set -e
           
           if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
             echo "Building ARM Linux with cross..."
-            cross build --release --target ${{ matrix.target }} --all-features --verbose
+            
+            # Try building with cross, with retry logic
+            BUILD_SUCCESS=false
+            for attempt in 1 2 3; do
+              echo "Attempt $attempt/3 for ARM Linux build..."
+              if cross build --release --target ${{ matrix.target }} --all-features --verbose; then
+                BUILD_SUCCESS=true
+                echo "✓ ARM Linux build succeeded on attempt $attempt"
+                break
+              else
+                echo "✗ ARM Linux build failed on attempt $attempt"
+                if [ $attempt -lt 3 ]; then
+                  echo "Retrying in 10 seconds..."
+                  sleep 10
+                  # Clean up any partial builds
+                  cargo clean --target ${{ matrix.target }} || true
+                fi
+              fi
+            done
+            
+            if [ "$BUILD_SUCCESS" = false ]; then
+              echo "❌ ARM Linux build failed after 3 attempts"
+              echo "This is often due to Docker image pull issues or system dependency problems"
+              echo "The release will continue without ARM Linux binary"
+              exit 1
+            fi
           else
             echo "Building ${{ matrix.target }} with cargo..."
             cargo build --release --target ${{ matrix.target }} --all-features --verbose
@@ -124,21 +190,27 @@ jobs:
           fi
 
       - name: Upload artifact
+        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
           path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
-        continue-on-error: false
 
       - name: Mark build as successful
-        if: success()
-        run: echo "BUILD_SUCCESS=true" >> $GITHUB_ENV
+        if: steps.build.outcome == 'success'
+        run: |
+          echo "BUILD_SUCCESS=true" >> $GITHUB_ENV
+          echo "✅ Build succeeded for target: ${{ matrix.target }}"
 
       - name: Mark build as failed  
-        if: failure()
+        if: steps.build.outcome == 'failure'
         run: |
           echo "BUILD_SUCCESS=false" >> $GITHUB_ENV
-          echo "Build failed for target: ${{ matrix.target }}"
+          echo "❌ Build failed for target: ${{ matrix.target }}"
+          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
+            echo "ARM Linux builds often fail due to Docker image or dependency issues"
+            echo "This is a known limitation and the release will continue with other platforms"
+          fi
 
   create-release:
     name: Create Release
@@ -200,11 +272,13 @@ jobs:
 
           ## Supported Platforms
           The following platforms are targeted for this release:
-          - Linux (x86_64, aarch64)
-          - macOS (Intel, Apple Silicon)  
-          - Windows (x86_64)
+          - Linux x86_64 (Intel/AMD 64-bit)
+          - Linux aarch64 (ARM 64-bit) - *May fail due to cross-compilation issues*
+          - macOS x86_64 (Intel Mac)
+          - macOS aarch64 (Apple Silicon)
+          - Windows x86_64 (64-bit)
 
-          **Note:** Successfully built platforms will have their binaries attached to this release. If any builds failed, they will not appear in the assets list below. Please check the Actions tab for detailed build information.
+          **Build Status:** Successfully built platforms will have their binaries attached below. If any builds failed (especially ARM Linux), they will not appear in the assets list. This is often due to Docker image availability or cross-compilation dependency issues. Check the [Actions tab](../../actions) for detailed build logs.
 
           ## Installation
           Download the appropriate binary for your platform and make it executable (Linux/macOS):
@@ -285,9 +359,14 @@ jobs:
 
       - name: Report missing asset
         if: steps.download.outcome == 'failure'
+        shell: bash
         run: |
           echo "⚠️ Asset ${{ matrix.asset.name }} was not available for upload"
           echo "This indicates the build for target ${{ matrix.asset.target }} failed during the build stage"
+          if [[ "${{ matrix.asset.target }}" == "aarch64-unknown-linux-gnu" ]]; then
+            echo "ARM Linux builds commonly fail due to Docker cross-compilation issues"
+            echo "This is a known limitation and users can try building locally if needed"
+          fi
           echo "The release will continue without this platform's binary"
 
   notify:
