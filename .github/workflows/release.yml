@@ -133,40 +133,52 @@ jobs:
             # Try building with cross, with retry logic and fallback strategies
             BUILD_SUCCESS=false
             
-            # Strategy 1: Try with rustls-tls (no OpenSSL)
-            echo "Strategy 1: Building with rustls backend..."
-            if cross build --release --target ${{ matrix.target }} --all-features --verbose; then
+            # Strategy 1: Try full GUI build with rustls
+            echo "🔧 Strategy 1: Building with full GUI features and rustls backend..."
+            if timeout 900 cross build --release --target ${{ matrix.target }} --all-features --verbose; then
               BUILD_SUCCESS=true
-              echo "✓ ARM Linux build succeeded with rustls backend"
+              echo "✅ ARM Linux build succeeded with full features"
             else
-              echo "✗ Strategy 1 failed, trying with vendored OpenSSL..."
+              echo "❌ Strategy 1 failed, cleaning and trying CLI-only build..."
               cargo clean --target ${{ matrix.target }} || true
               
-              # Strategy 2: Try with vendored OpenSSL
-              echo "Strategy 2: Building with vendored OpenSSL..."
-              if OPENSSL_STATIC=1 OPENSSL_VENDORED=1 cross build --release --target ${{ matrix.target }} --all-features --verbose; then
+              # Strategy 2: CLI-only build (no GUI dependencies)
+              echo "🔧 Strategy 2: Building CLI-only version (no GUI dependencies)..."
+              if timeout 600 cross build --release --target ${{ matrix.target }} --no-default-features --verbose; then
                 BUILD_SUCCESS=true
-                echo "✓ ARM Linux build succeeded with vendored OpenSSL"
+                echo "✅ ARM Linux build succeeded with CLI-only features"
+                echo "⚠️ Note: ARM Linux binary will be CLI-only due to GUI cross-compilation limitations"
+                echo "ℹ️ CLI version includes all core DVD ripping functionality"
               else
-                echo "✗ Strategy 2 failed, trying minimal feature set..."
+                echo "❌ Strategy 2 failed, trying with minimal core features..."
                 cargo clean --target ${{ matrix.target }} || true
                 
-                # Strategy 3: Try without GUI features (minimal dependencies)
-                echo "Strategy 3: Building without GUI features..."
-                if cross build --release --target ${{ matrix.target }} --no-default-features --verbose; then
+                # Strategy 3: Absolute minimal build
+                echo "🔧 Strategy 3: Building with absolute minimal features..."
+                if timeout 300 cross build --release --target ${{ matrix.target }} --no-default-features --bin copydvd --verbose; then
                   BUILD_SUCCESS=true
-                  echo "✓ ARM Linux build succeeded without GUI (CLI-only)"
-                  echo "⚠️ Note: ARM Linux binary will be CLI-only due to cross-compilation limitations"
+                  echo "✅ ARM Linux build succeeded with minimal features"
+                  echo "⚠️ Note: ARM Linux binary has minimal feature set"
                 else
-                  echo "✗ All ARM Linux build strategies failed"
+                  echo "❌ All ARM Linux build strategies failed"
+                  echo "🔧 Possible causes:"
+                  echo "   - Cross-compilation container issues"
+                  echo "   - Network connectivity problems"
+                  echo "   - Incompatible system dependencies"
+                  echo "   - Architecture-specific compilation errors"
                 fi
               fi
             fi
             
             if [ "$BUILD_SUCCESS" = false ]; then
-              echo "❌ ARM Linux build failed after 3 attempts"
-              echo "This is often due to Docker image pull issues or system dependency problems"
-              echo "The release will continue without ARM Linux binary"
+              echo "❌ ARM Linux build failed with all strategies"
+              echo "🔧 Common causes:"
+              echo "  - Docker image unavailable or corrupted"
+              echo "  - Cross-compilation environment issues"
+              echo "  - Missing system dependencies"
+              echo "  - Network connectivity problems"
+              echo "📋 The release will continue without ARM Linux binary"
+              echo "🔗 Check https://github.com/cross-rs/cross for cross-compilation troubleshooting"
               exit 1
             fi
           else
@@ -174,32 +186,74 @@ jobs:
             cargo build --release --target ${{ matrix.target }} --all-features --verbose
           fi
           
-          # Verify the binary was created
-          echo "Checking for binary at: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}"
-          if [ -f "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}" ]; then
-            echo "✓ Binary created successfully: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}"
-            ls -la "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}"
+          # Comprehensive binary verification and debugging
+          echo "🔍 Checking for binary at: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}"
+          echo "🎯 Expected binary name: ${{ matrix.artifact_name }}"
+          echo "🎯 Target: ${{ matrix.target }}"
+          
+          # Show target directory structure
+          echo "📁 Target directory structure:"
+          ls -la "target/" 2>/dev/null || echo "Target directory doesn't exist"
+          
+          if [ -d "target/${{ matrix.target }}" ]; then
+            echo "📁 Target-specific directory contents:"
+            ls -la "target/${{ matrix.target }}/" 2>/dev/null
+            
+            if [ -d "target/${{ matrix.target }}/release" ]; then
+              echo "📁 Release directory contents:"
+              ls -la "target/${{ matrix.target }}/release/" 2>/dev/null
+              
+              echo "🔍 All files in release directory:"
+              find "target/${{ matrix.target }}/release/" -type f 2>/dev/null | head -20
+              
+              echo "🔍 Looking for binaries (executable files):"
+              find "target/${{ matrix.target }}/release/" -type f -executable 2>/dev/null | head -10
+              
+              echo "🔍 Looking for files with 'copy' or 'dvd' in name:"
+              find "target/${{ matrix.target }}/release/" -name "*copy*" -o -name "*dvd*" 2>/dev/null
+            else
+              echo "❌ Release directory doesn't exist"
+            fi
           else
-            echo "✗ Binary NOT found at: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}"
-            echo "Contents of target/${{ matrix.target }}/release/:"
-            ls -la "target/${{ matrix.target }}/release/" 2>/dev/null || echo "Release directory doesn't exist"
-            echo "All files in target/${{ matrix.target }}/release/:"
-            find "target/${{ matrix.target }}/release/" -type f 2>/dev/null || echo "No files found"
-            echo "Debug: Expected binary name from matrix: ${{ matrix.artifact_name }}"
-            echo "Debug: Looking for files with similar names:"
-            find "target/${{ matrix.target }}/release/" -name "*copy*" -o -name "*dvd*" 2>/dev/null || echo "No similar files found"
-            exit 1
+            echo "❌ Target directory doesn't exist"
+          fi
+          
+          # Final binary check
+          if [ -f "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}" ]; then
+            echo "✅ Binary found: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}"
+            ls -la "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}"
+            file "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}"
+          else
+            echo "❌ Binary NOT found at expected location"
+            echo "🔧 This indicates the build may have failed silently or the binary name is different"
+            
+            # Try to find any binary that might be ours
+            echo "🔍 Searching for any potential binary:"
+            find "target/" -name "*copy*" -o -name "*dvd*" 2>/dev/null | head -10
+            
+            if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
+              echo "⚠️ ARM Linux cross-compilation may have failed"
+              echo "🔧 This is often due to missing dependencies or cross-compilation issues"
+              exit 1
+            else
+              exit 1
+            fi
           fi
 
       - name: Strip binary (Unix)
-        if: matrix.os != 'windows-latest'
+        if: matrix.os != 'windows-latest' && steps.build.outcome == 'success'
         shell: bash
         run: |
+          echo "🔧 Attempting to strip binary: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}"
           if [ -f "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}" ]; then
+            echo "✅ Binary exists, proceeding with strip"
             strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
-            echo "✓ Binary stripped successfully"
+            echo "✅ Binary stripped successfully"
+            ls -la "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}"
           else
-            echo "✗ Binary not found at target/${{ matrix.target }}/release/${{ matrix.artifact_name }}"
+            echo "❌ Binary not found for stripping: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}"
+            echo "🔍 Available files in release directory:"
+            ls -la "target/${{ matrix.target }}/release/" 2>/dev/null || echo "No release directory"
             exit 1
           fi
 
