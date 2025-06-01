@@ -9,7 +9,7 @@ pub fn render_about_tab(ui: &mut egui::Ui, _ui_state: &mut UiState) {
     styled_panel(ui, |ui| {
         grouped_section(ui, "Application Information", |ui| {
             ui.label("Copy DVD - Simple DVD Copying Tool");
-            ui.label("Version: 0.1.0");
+            ui.label(format!("Version: {}", env!("CARGO_PKG_VERSION")));
             ui.label("Built with Rust and egui");
             
             ui.add_space(Layout::SPACING);
