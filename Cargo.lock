@@ -1066,7 +1066,7 @@ dependencies = [
  "regex",
  "reqwest",
  "rfd",
- "rustix 0.38.44",
+ "rustix 1.0.7",
  "serde",
  "serde_json",
  "sha2",

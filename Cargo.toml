@@ -55,7 +55,7 @@ egui_extras = { version = "0.28", features = ["all_loaders"], optional = true }
 rfd = { version = "0.11", optional = true }
 
 # Fix for async-process rustix dependency issue
-rustix = { version = "0.38", features = ["process"] }
+rustix = { version = "1.0.7", features = ["process"] }
 
 # Platform-specific
 [target.'cfg(windows)'.dependencies]
