@@ -1,6 +1,6 @@
 [package]
 name = "copy_dvd"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 authors = ["SleepyYui"]
 description = "A multi-threaded DVD copying application with GUI and CLI support - copy DVDs to MP4 and other formats"
