@@ -1,22 +1,26 @@
-name: Automatic Version Bump
+name: Manual Version Bump
 
 on:
-  push:
-    branches: [main, master, v2]
-    paths-ignore:
-      - 'README.md'
-      - 'docs/**'
-      - '.gitignore'
-      - 'LICENSE'
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - major
+          - minor
+          - patch
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   version-bump:
-    name: Automatic Version Bump
+    name: Manual Version Bump
     runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[skip version]') && !contains(github.event.head_commit.message, '[version skip]')"
     permissions:
       contents: write
     
@@ -40,23 +44,30 @@ jobs:
       - name: Determine version bump type
         id: bump_type
         run: |
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
-          echo "Analyzing commit message: $COMMIT_MSG"
-          
-          # Check for breaking changes (major bump)
-          if echo "$COMMIT_MSG" | grep -qE "(BREAKING CHANGE|!:|feat!|fix!|perf!)"; then
-            BUMP_TYPE="major"
-          # Check for features (minor bump)
-          elif echo "$COMMIT_MSG" | grep -qE "^feat(\(.+\))?:"; then
-            BUMP_TYPE="minor"
-          # Check for fixes, docs, style, refactor, test, chore (patch bump)
-          elif echo "$COMMIT_MSG" | grep -qE "^(fix|docs|style|refactor|perf|test|chore)(\(.+\))?:"; then
-            BUMP_TYPE="patch"
-          # Check for other common patterns
-          elif echo "$COMMIT_MSG" | grep -qiE "(bug|hotfix|patch|update|improve|enhance|optimize)"; then
-            BUMP_TYPE="patch"
+          # Check if manually dispatched with specific bump type
+          if [ "${{ github.event.inputs.bump_type }}" != "auto" ]; then
+            BUMP_TYPE="${{ github.event.inputs.bump_type }}"
+            echo "Manual bump type specified: $BUMP_TYPE"
           else
-            BUMP_TYPE="patch"
+            # Auto-determine from latest commit message
+            COMMIT_MSG=$(git log --format=%B -n 1 HEAD)
+            echo "Analyzing latest commit message: $COMMIT_MSG"
+            
+            # Check for breaking changes (major bump)
+            if echo "$COMMIT_MSG" | grep -qE "(BREAKING CHANGE|!:|feat!|fix!|perf!)"; then
+              BUMP_TYPE="major"
+            # Check for features (minor bump)
+            elif echo "$COMMIT_MSG" | grep -qE "^feat(\(.+\))?:"; then
+              BUMP_TYPE="minor"
+            # Check for fixes, docs, style, refactor, test, chore (patch bump)
+            elif echo "$COMMIT_MSG" | grep -qE "^(fix|docs|style|refactor|perf|test|chore)(\(.+\))?:"; then
+              BUMP_TYPE="patch"
+            # Check for other common patterns
+            elif echo "$COMMIT_MSG" | grep -qiE "(bug|hotfix|patch|update|improve|enhance|optimize)"; then
+              BUMP_TYPE="patch"
+            else
+              BUMP_TYPE="patch"
+            fi
           fi
           
           echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
