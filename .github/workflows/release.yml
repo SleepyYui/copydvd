@@ -129,13 +129,12 @@ jobs:
         env:
           CROSS_NO_WARNINGS: "0"
         run: |
-          set -e
+          set +e  # Don't exit on error immediately, we want to handle failures gracefully
+          
+          BUILD_SUCCESS=false
           
           if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
             echo "Building ARM Linux with cross..."
-            
-            # Try building with cross, with retry logic and fallback strategies
-            BUILD_SUCCESS=false
             
             # Strategy 1: Try full GUI build with rustls
             echo "🔧 Strategy 1: Building with full GUI features and rustls backend..."
@@ -173,21 +172,14 @@ jobs:
                 fi
               fi
             fi
-            
-            if [ "$BUILD_SUCCESS" = false ]; then
-              echo "❌ ARM Linux build failed with all strategies"
-              echo "🔧 Common causes:"
-              echo "  - Docker image unavailable or corrupted"
-              echo "  - Cross-compilation environment issues"
-              echo "  - Missing system dependencies"
-              echo "  - Network connectivity problems"
-              echo "📋 The release will continue without ARM Linux binary"
-              echo "🔗 Check https://github.com/cross-rs/cross for cross-compilation troubleshooting"
-              exit 1
-            fi
           else
             echo "Building ${{ matrix.target }} with cargo..."
-            cargo build --release --target ${{ matrix.target }} --all-features --verbose
+            if cargo build --release --target ${{ matrix.target }} --all-features --verbose; then
+              BUILD_SUCCESS=true
+              echo "✅ Build succeeded for ${{ matrix.target }}"
+            else
+              echo "❌ Build failed for ${{ matrix.target }}"
+            fi
           fi
           
           # Comprehensive binary verification and debugging
@@ -217,35 +209,49 @@ jobs:
               find "target/${{ matrix.target }}/release/" -name "*copy*" -o -name "*dvd*" 2>/dev/null
             else
               echo "❌ Release directory doesn't exist"
+              BUILD_SUCCESS=false
             fi
           else
             echo "❌ Target directory doesn't exist"
+            BUILD_SUCCESS=false
           fi
           
-          # Final binary check
+          # Final binary check - this is the definitive test
           if [ -f "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}" ]; then
             echo "✅ Binary found: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}"
             ls -la "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}"
             file "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}"
+            BUILD_SUCCESS=true
+            echo "BINARY_EXISTS=true" >> $GITHUB_ENV
           else
             echo "❌ Binary NOT found at expected location"
-            echo "🔧 This indicates the build may have failed silently or the binary name is different"
+            echo "🔧 This indicates the build failed or the binary name is different"
+            BUILD_SUCCESS=false
+            echo "BINARY_EXISTS=false" >> $GITHUB_ENV
             
             # Try to find any binary that might be ours
             echo "🔍 Searching for any potential binary:"
             find "target/" -name "*copy*" -o -name "*dvd*" 2>/dev/null | head -10
-            
+          fi
+          
+          # Set final build status
+          if [ "$BUILD_SUCCESS" = true ]; then
+            echo "BUILD_SUCCESS=true" >> $GITHUB_ENV
+            echo "✅ Overall build result: SUCCESS"
+            exit 0
+          else
+            echo "BUILD_SUCCESS=false" >> $GITHUB_ENV
+            echo "❌ Overall build result: FAILED"
             if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
-              echo "⚠️ ARM Linux cross-compilation may have failed"
+              echo "⚠️ ARM Linux cross-compilation failed (this is often expected)"
               echo "🔧 This is often due to missing dependencies or cross-compilation issues"
-              exit 1
-            else
-              exit 1
+              echo "📋 The release will continue without ARM Linux binary"
             fi
+            exit 1
           fi
 
       - name: Strip binary (Unix)
-        if: matrix.os != 'windows-latest' && steps.build.outcome == 'success'
+        if: matrix.os != 'windows-latest' && env.BINARY_EXISTS == 'true'
         shell: bash
         run: |
           echo "🔧 Attempting to strip binary: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}"
@@ -262,28 +268,25 @@ jobs:
           fi
 
       - name: Upload artifact
-        if: steps.build.outcome == 'success'
+        if: env.BINARY_EXISTS == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
           path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
 
-      - name: Mark build as successful
-        if: steps.build.outcome == 'success'
+      - name: Mark build status
+        if: always()
         shell: bash
         run: |
-          echo "BUILD_SUCCESS=true" >> $GITHUB_ENV
-          echo "✅ Build succeeded for target: ${{ matrix.target }}"
-
-      - name: Mark build as failed  
-        if: steps.build.outcome == 'failure'
-        shell: bash
-        run: |
-          echo "BUILD_SUCCESS=false" >> $GITHUB_ENV
-          echo "❌ Build failed for target: ${{ matrix.target }}"
-          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
-            echo "ARM Linux builds often fail due to Docker image or dependency issues"
-            echo "This is a known limitation and the release will continue with other platforms"
+          if [ "${{ env.BINARY_EXISTS }}" = "true" ]; then
+            echo "✅ Build succeeded for target: ${{ matrix.target }}"
+            echo "📦 Binary ready for upload: ${{ matrix.asset_name }}"
+          else
+            echo "❌ Build failed for target: ${{ matrix.target }}"
+            if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
+              echo "ARM Linux builds often fail due to Docker image or dependency issues"
+              echo "This is a known limitation and the release will continue with other platforms"
+            fi
           fi
 
   create-release:

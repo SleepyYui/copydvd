@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# Post-commit hook for creating git tags after successful version bump
+# This script creates a git tag for the new version after a successful commit
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Function to get current version from Cargo.toml
+get_current_version() {
+    grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/'
+}
+
+# Get the current version
+CURRENT_VERSION=$(get_current_version)
+
+# Check if a tag for this version already exists
+if git tag -l | grep -q "^v$CURRENT_VERSION$"; then
+    echo -e "${YELLOW}⚠️  Tag v$CURRENT_VERSION already exists${NC}"
+    exit 0
+fi
+
+# Get the latest commit message to check if this was a version bump
+COMMIT_MSG=$(git log -1 --pretty=%B | head -1)
+
+# Check for skip version flags
+if echo "$COMMIT_MSG" | grep -qE "\[skip version\]|\[version skip\]"; then
+    echo -e "${YELLOW}⚠️  Version tag creation skipped via [skip version] flag${NC}"
+    exit 0
+fi
+
+# Create git tag for the current version
+echo -e "${BLUE}🏷️  Creating git tag v$CURRENT_VERSION...${NC}"
+if git tag "v$CURRENT_VERSION" 2>/dev/null; then
+    echo -e "${GREEN}📌 Git tag v$CURRENT_VERSION created successfully${NC}"
+    echo -e "${BLUE}ℹ️  Use 'git push --tags' to push tags to remote repository${NC}"
+else
+    echo -e "${RED}❌ Failed to create tag v$CURRENT_VERSION${NC}"
+    exit 1
+fi
+
+exit 0
