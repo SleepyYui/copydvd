@@ -1,3 +1,5 @@
 pub mod ui_state;
 
-pub use ui_state::{ConfigTemp, Tab, UiState, UpdateStatus, HandBrakeOperationStatus, ToastNotification, ToastType};
+pub use ui_state::{
+    ConfigTemp, HandBrakeOperationStatus, Tab, ToastNotification, ToastType, UiState, UpdateStatus,
+};

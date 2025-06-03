@@ -6,10 +6,10 @@ use futures_util::StreamExt;
 use reqwest;
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use tracing::{debug, info, warn};
 use zip::ZipArchive;
 
@@ -96,7 +96,11 @@ impl HandBrakeManager {
 
         for name in possible_names {
             if let Ok(system_path) = which::which(name) {
-                info!("Found HandBrake in system PATH: {} -> {}", name, system_path.display());
+                info!(
+                    "Found HandBrake in system PATH: {} -> {}",
+                    name,
+                    system_path.display()
+                );
                 self.binary_path = Some(system_path.clone());
                 return Ok(system_path);
             }
@@ -105,7 +109,10 @@ impl HandBrakeManager {
 
         // Check if we have a cached binary
         let cached_binary = self.get_cached_binary_path()?;
-        info!("Checking for cached HandBrake at: {}", cached_binary.display());
+        info!(
+            "Checking for cached HandBrake at: {}",
+            cached_binary.display()
+        );
         if cached_binary.exists() {
             info!("Found cached HandBrake: {}", cached_binary.display());
             self.binary_path = Some(cached_binary.clone());
@@ -119,12 +126,18 @@ impl HandBrakeManager {
 
         let binary_path = self.get_cached_binary_path()?;
         if !binary_path.exists() {
-            let error_msg = format!("Failed to download HandBrake - binary not found at expected path: {}", binary_path.display());
+            let error_msg = format!(
+                "Failed to download HandBrake - binary not found at expected path: {}",
+                binary_path.display()
+            );
             warn!("{}", error_msg);
             return Err(AppError::HandbrakeError(error_msg));
         }
 
-        info!("HandBrake successfully downloaded to: {}", binary_path.display());
+        info!(
+            "HandBrake successfully downloaded to: {}",
+            binary_path.display()
+        );
         self.binary_path = Some(binary_path.clone());
         Ok(binary_path)
     }
@@ -138,7 +151,11 @@ impl HandBrakeManager {
         let platform_info = Self::get_platform_info()?;
 
         info!("=== Starting HandBrake Download ===");
-        info!("Platform: {} {}", std::env::consts::OS, std::env::consts::ARCH);
+        info!(
+            "Platform: {} {}",
+            std::env::consts::OS,
+            std::env::consts::ARCH
+        );
         info!("Download URL: {}", platform_info.download_url);
         info!("Target binary: {}", platform_info.binary_name);
         info!("Cache directory: {}", self.cache_dir.display());
@@ -148,7 +165,9 @@ impl HandBrakeManager {
             .timeout(std::time::Duration::from_secs(300)) // 5 minute timeout
             .user_agent("CopyDVD/1.0")
             .build()
-            .map_err(|e| AppError::HandbrakeError(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                AppError::HandbrakeError(format!("Failed to create HTTP client: {}", e))
+            })?;
 
         info!("Sending HTTP request to download HandBrake...");
         let response = client
@@ -173,7 +192,11 @@ impl HandBrakeManager {
         // Get content length for progress tracking
         let content_length = response.content_length();
         if let Some(length) = content_length {
-            info!("Download size: {} bytes ({:.2} MB)", length, length as f64 / 1024.0 / 1024.0);
+            info!(
+                "Download size: {} bytes ({:.2} MB)",
+                length,
+                length as f64 / 1024.0 / 1024.0
+            );
         } else {
             info!("Download size: unknown (no Content-Length header)");
         }
@@ -200,14 +223,22 @@ impl HandBrakeManager {
             if let Some(total_size) = content_length {
                 let download_progress = total_downloaded as f64 / total_size as f64;
                 self.update_progress(HandBrakePhase::Downloading, download_progress as f32);
-                if total_downloaded % (1024 * 1024) == 0 || download_progress >= 0.99 { // Log every MB or at completion
-                    info!("Download progress: {:.1}% ({}/{} bytes)", download_progress * 100.0, total_downloaded, total_size);
+                if total_downloaded % (1024 * 1024) == 0 || download_progress >= 0.99 {
+                    // Log every MB or at completion
+                    info!(
+                        "Download progress: {:.1}% ({}/{} bytes)",
+                        download_progress * 100.0,
+                        total_downloaded,
+                        total_size
+                    );
                 }
             } else {
                 // Without content length, estimate progress based on downloaded size
-                let download_progress = (total_downloaded as f64 / (20.0 * 1024.0 * 1024.0)).min(1.0); // Assume ~20MB max
+                let download_progress =
+                    (total_downloaded as f64 / (20.0 * 1024.0 * 1024.0)).min(1.0); // Assume ~20MB max
                 self.update_progress(HandBrakePhase::Downloading, download_progress as f32);
-                if total_downloaded % (1024 * 1024) == 0 { // Log every MB
+                if total_downloaded % (1024 * 1024) == 0 {
+                    // Log every MB
                     info!("Downloaded: {} bytes", total_downloaded);
                 }
             }
@@ -299,7 +330,9 @@ impl HandBrakeManager {
             let file_name = file.name();
             info!("Checking file: {}", file_name);
 
-            if file_name.ends_with("HandBrake.exe") || file_name.ends_with(&platform_info.binary_name) {
+            if file_name.ends_with("HandBrake.exe")
+                || file_name.ends_with(&platform_info.binary_name)
+            {
                 info!("Found HandBrake executable: {}", file_name);
                 let target_path = self.cache_dir.join(&platform_info.binary_name);
                 info!("Extracting to: {}", target_path.display());
@@ -318,18 +351,28 @@ impl HandBrakeManager {
                         AppError::HandbrakeError(e.to_string())
                     })?;
 
-                info!("Successfully extracted {} bytes to: {}", bytes_copied, target_path.display());
+                info!(
+                    "Successfully extracted {} bytes to: {}",
+                    bytes_copied,
+                    target_path.display()
+                );
 
                 // Make executable on Unix systems
                 #[cfg(unix)]
                 {
                     use std::os::unix::fs::PermissionsExt;
                     let mut perms = fs::metadata(&target_path)
-                        .map_err(|e| AppError::HandbrakeError(format!("Failed to get file metadata: {}", e)))?
+                        .map_err(|e| {
+                            AppError::HandbrakeError(format!("Failed to get file metadata: {}", e))
+                        })?
                         .permissions();
                     perms.set_mode(0o755); // rwxr-xr-x
-                    fs::set_permissions(&target_path, perms)
-                        .map_err(|e| AppError::HandbrakeError(format!("Failed to set executable permissions: {}", e)))?;
+                    fs::set_permissions(&target_path, perms).map_err(|e| {
+                        AppError::HandbrakeError(format!(
+                            "Failed to set executable permissions: {}",
+                            e
+                        ))
+                    })?;
                     info!("Set executable permissions on {}", target_path.display());
                 }
 
@@ -337,24 +380,24 @@ impl HandBrakeManager {
             }
         }
 
-        let error_msg = format!("HandBrake executable not found in downloaded archive. Looking for: {}", platform_info.binary_name);
+        let error_msg = format!(
+            "HandBrake executable not found in downloaded archive. Looking for: {}",
+            platform_info.binary_name
+        );
         warn!("{}", error_msg);
         Err(AppError::HandbrakeError(error_msg))
     }
 
-    async fn extract_from_dmg(
-        &self,
-        dmg_bytes: &[u8],
-        platform_info: &PlatformInfo,
-    ) -> Result<()> {
+    async fn extract_from_dmg(&self, dmg_bytes: &[u8], platform_info: &PlatformInfo) -> Result<()> {
         info!("=== macOS DMG Extraction ===");
         info!("Received DMG file: {} bytes", dmg_bytes.len());
 
         // Write DMG to temporary file
         self.update_progress(HandBrakePhase::Extracting, 0.0);
         let temp_dmg = self.cache_dir.join("handbrake_temp.dmg");
-        std::fs::write(&temp_dmg, dmg_bytes)
-            .map_err(|e| AppError::HandbrakeError(format!("Failed to write DMG to temporary file: {}", e)))?;
+        std::fs::write(&temp_dmg, dmg_bytes).map_err(|e| {
+            AppError::HandbrakeError(format!("Failed to write DMG to temporary file: {}", e))
+        })?;
         info!("Wrote DMG to: {}", temp_dmg.display());
 
         // Mount the DMG
@@ -368,7 +411,10 @@ impl HandBrakeManager {
         if !mount_output.status.success() {
             let error = String::from_utf8_lossy(&mount_output.stderr);
             warn!("Failed to mount DMG: {}", error);
-            return Err(AppError::HandbrakeError(format!("Failed to mount DMG: {}", error)));
+            return Err(AppError::HandbrakeError(format!(
+                "Failed to mount DMG: {}",
+                error
+            )));
         }
 
         let mount_info = String::from_utf8_lossy(&mount_output.stdout);
@@ -386,7 +432,9 @@ impl HandBrakeManager {
                 }
             })
             .next()
-            .ok_or_else(|| AppError::HandbrakeError("Could not determine mount point".to_string()))?;
+            .ok_or_else(|| {
+                AppError::HandbrakeError("Could not determine mount point".to_string())
+            })?;
 
         info!("DMG mounted at: {}", mount_point);
 
@@ -394,15 +442,17 @@ impl HandBrakeManager {
         let app_path = std::path::Path::new(mount_point).join("HandBrake.app");
         if !app_path.exists() {
             // Try to find it with different case or location
-            let mount_dir = std::fs::read_dir(mount_point)
-                .map_err(|e| AppError::HandbrakeError(format!("Failed to read mount directory: {}", e)))?;
+            let mount_dir = std::fs::read_dir(mount_point).map_err(|e| {
+                AppError::HandbrakeError(format!("Failed to read mount directory: {}", e))
+            })?;
 
             let mut found_app = None;
             for entry in mount_dir {
                 let entry = entry?;
                 let name = entry.file_name();
                 if name.to_string_lossy().to_lowercase().contains("handbrake")
-                   && name.to_string_lossy().ends_with(".app") {
+                    && name.to_string_lossy().ends_with(".app")
+                {
                     found_app = Some(entry.path());
                     break;
                 }
@@ -457,7 +507,8 @@ impl HandBrakeManager {
                 let error_msg = format!(
                     "HandBrakeCLI not found in any expected locations within {}. Tried: {}",
                     app_path.display(),
-                    possible_cli_paths.iter()
+                    possible_cli_paths
+                        .iter()
                         .map(|p| p.to_string_lossy())
                         .collect::<Vec<_>>()
                         .join(", ")
@@ -492,7 +543,10 @@ impl HandBrakeManager {
             std::fs::set_permissions(&cli_dest, perms)?;
         }
 
-        info!("Successfully copied HandBrakeCLI to: {}", cli_dest.display());
+        info!(
+            "Successfully copied HandBrakeCLI to: {}",
+            cli_dest.display()
+        );
 
         // Unmount the DMG
         info!("Unmounting DMG...");
@@ -505,7 +559,10 @@ impl HandBrakeManager {
             if output.status.success() {
                 info!("DMG unmounted successfully");
             } else {
-                warn!("Failed to unmount DMG: {}", String::from_utf8_lossy(&output.stderr));
+                warn!(
+                    "Failed to unmount DMG: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
             }
         }
 
@@ -626,18 +683,26 @@ impl HandBrakeManager {
             })?;
 
         info!("HandBrake exit status: {}", output.status);
-        info!("HandBrake stdout: {}", String::from_utf8_lossy(&output.stdout));
-        info!("HandBrake stderr: {}", String::from_utf8_lossy(&output.stderr));
+        info!(
+            "HandBrake stdout: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        info!(
+            "HandBrake stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
 
         if !output.status.success() {
             let error_msg = if output.status.code().is_none() {
                 // Process was terminated by signal (like SIGKILL)
                 warn!("HandBrake was terminated by system signal (SIGKILL), attempting automatic quarantine removal...");
-                
+
                 #[cfg(target_os = "macos")]
                 {
-                    info!("HandBrake was terminated by macOS, attempting automatic security fixes...");
-                    
+                    info!(
+                        "HandBrake was terminated by macOS, attempting automatic security fixes..."
+                    );
+
                     // Attempt automatic fixes using the dedicated module
                     match MacOSAutoFix::attempt_all_fixes(&binary_path) {
                         Ok(fixes_applied) if fixes_applied => {
@@ -646,11 +711,18 @@ impl HandBrakeManager {
                             let retry_output = Command::new(&binary_path)
                                 .arg("--version")
                                 .output()
-                                .with_context(|| format!("Failed to retry HandBrake execution: {}", binary_path.display()))
+                                .with_context(|| {
+                                    format!(
+                                        "Failed to retry HandBrake execution: {}",
+                                        binary_path.display()
+                                    )
+                                })
                                 .map_err(|e| AppError::HandbrakeError(e.to_string()))?;
 
                             if retry_output.status.success() {
-                                info!("HandBrake execution successful after automatic security fixes");
+                                info!(
+                                    "HandBrake execution successful after automatic security fixes"
+                                );
                                 let version_output = String::from_utf8_lossy(&retry_output.stdout);
                                 let stderr_output = String::from_utf8_lossy(&retry_output.stderr);
                                 let version_info = if !version_output.trim().is_empty() {
@@ -658,7 +730,10 @@ impl HandBrakeManager {
                                 } else {
                                     stderr_output.trim()
                                 };
-                                info!("HandBrake verification successful. Version info: {}", version_info);
+                                info!(
+                                    "HandBrake verification successful. Version info: {}",
+                                    version_info
+                                );
                                 return Ok(binary_path.to_string_lossy().to_string());
                             } else {
                                 warn!("HandBrake still failing after automatic security fixes");
@@ -671,7 +746,7 @@ impl HandBrakeManager {
                             warn!("Failed to apply automatic fixes: {}", e);
                         }
                     }
-                    
+
                     format!(
                         "HandBrake was terminated by macOS Gatekeeper ({}). Automatic security fixes were attempted.\n\
                         \n\
@@ -725,7 +800,10 @@ impl HandBrakeManager {
             stderr_output.trim()
         };
 
-        info!("HandBrake verification successful. Version info: {}", version_info);
+        info!(
+            "HandBrake verification successful. Version info: {}",
+            version_info
+        );
 
         Ok(binary_path.to_string_lossy().to_string())
     }
@@ -797,7 +875,12 @@ impl HandBrakeManager {
             let mode = perms.mode();
             perms.set_mode(mode | 0o700); // rwx for owner
             fs::set_permissions(binary_path, perms)
-                .with_context(|| format!("Failed to set execute permissions on {}", binary_path.display()))
+                .with_context(|| {
+                    format!(
+                        "Failed to set execute permissions on {}",
+                        binary_path.display()
+                    )
+                })
                 .map_err(|e| AppError::HandbrakeError(e.to_string()))?;
             info!("Set execute permissions on binary");
         }
@@ -816,22 +899,22 @@ impl HandBrakeManager {
     #[cfg(target_os = "macos")]
     fn remove_macos_quarantine(&self, binary_path: &Path) -> Result<bool> {
         info!("Removing macOS quarantine attributes...");
-        
+
         // Check if quarantine attribute exists first
         let has_quarantine = self.has_quarantine_attribute(binary_path);
         info!("Binary has quarantine attribute: {}", has_quarantine);
-        
+
         if has_quarantine {
-            // For downloaded binaries that are being killed by SIGKILL, 
+            // For downloaded binaries that are being killed by SIGKILL,
             // go straight to elevated removal since normal xattr usually fails
             let removed = self.remove_quarantine_with_password_prompt(binary_path)?;
-            
+
             // Also try to remove other common quarantine attributes
             let _ = Command::new("xattr")
                 .args(["-d", "com.apple.metadata:kMDItemWhereFroms"])
                 .arg(binary_path)
                 .output();
-                
+
             Ok(removed)
         } else {
             info!("No quarantine attribute found on binary");
@@ -843,15 +926,13 @@ impl HandBrakeManager {
     #[cfg(target_os = "macos")]
     fn remove_quarantine_with_password_prompt(&self, binary_path: &Path) -> Result<bool> {
         info!("Prompting user for password to remove quarantine attributes...");
-        
+
         let script = format!(
             r#"do shell script "xattr -d com.apple.quarantine '{}'" with administrator privileges"#,
             binary_path.display()
         );
 
-        let output = Command::new("osascript")
-            .args(["-e", &script])
-            .output();
+        let output = Command::new("osascript").args(["-e", &script]).output();
 
         match output {
             Ok(result) => {
@@ -867,7 +948,10 @@ impl HandBrakeManager {
                         info!("Quarantine attribute is already missing from binary");
                         Ok(true) // Not an error - attribute is already gone
                     } else {
-                        warn!("Failed to remove quarantine attributes with elevation: {}", stderr);
+                        warn!(
+                            "Failed to remove quarantine attributes with elevation: {}",
+                            stderr
+                        );
                         Ok(false)
                     }
                 }

@@ -41,16 +41,16 @@ pub struct UiState {
 
     /// HandBrake manager for download/management operations
     pub handbrake_manager: Arc<Mutex<HandBrakeManager>>,
-    
+
     /// HandBrake operation status
     pub handbrake_status: HandBrakeOperationStatus,
-    
+
     /// Download progress tracking for async operations
     pub download_progress: Option<Arc<std::sync::Mutex<f32>>>,
-    
+
     /// Phase progress tracking for HandBrake operations
     pub handbrake_phase_progress: Option<Arc<std::sync::Mutex<(HandBrakeOperationStatus, f32)>>>,
-    
+
     /// Toast notifications for better user feedback
     pub toast_notifications: Vec<ToastNotification>,
 }
@@ -80,7 +80,7 @@ impl ToastNotification {
             duration: Duration::from_secs(5), // Default 5 seconds
         }
     }
-    
+
     pub fn with_duration(message: String, toast_type: ToastType, duration: Duration) -> Self {
         Self {
             message,
@@ -89,11 +89,11 @@ impl ToastNotification {
             duration,
         }
     }
-    
+
     pub fn is_expired(&self) -> bool {
         self.created_at.elapsed() > self.duration
     }
-    
+
     pub fn remaining_ratio(&self) -> f32 {
         let elapsed = self.created_at.elapsed().as_secs_f32();
         let total = self.duration.as_secs_f32();
@@ -210,7 +210,7 @@ impl Default for UiState {
         let handbrake_manager = HandBrakeManager::new()
             .map(|hm| Arc::new(Mutex::new(hm)))
             .unwrap_or_else(|_| Arc::new(Mutex::new(HandBrakeManager::default())));
-            
+
         Self {
             active_tab: Tab::Main,
             input_path: String::new(),
@@ -277,7 +277,7 @@ impl UiState {
     /// Start HandBrake download operation
     pub async fn download_handbrake(&mut self) -> Result<(), String> {
         self.handbrake_status = HandBrakeOperationStatus::Downloading { progress: 0.0 };
-        
+
         let manager = self.handbrake_manager.clone();
         let result = {
             let mut guard = manager.lock().await;
@@ -300,7 +300,7 @@ impl UiState {
     /// Verify HandBrake installation
     pub async fn verify_handbrake(&mut self) -> Result<String, String> {
         self.handbrake_status = HandBrakeOperationStatus::VerifyingInstallation;
-        
+
         let manager = self.handbrake_manager.clone();
         let result = {
             let mut guard = manager.lock().await;
@@ -323,7 +323,7 @@ impl UiState {
     /// Clear HandBrake cache
     pub async fn clear_handbrake_cache(&mut self) -> Result<(), String> {
         self.handbrake_status = HandBrakeOperationStatus::ClearingCache;
-        
+
         let manager = self.handbrake_manager.clone();
         let result = {
             let guard = manager.lock().await;
@@ -355,7 +355,7 @@ impl UiState {
                 let size_mb = size as f64 / 1024.0 / 1024.0;
                 self.config_temp.cache_info = Some((
                     cache_dir.to_string_lossy().to_string(),
-                    format!("{:.1} MB", size_mb)
+                    format!("{:.1} MB", size_mb),
                 ));
             }
             Err(e) => {
@@ -406,22 +406,31 @@ impl UiState {
     pub fn clear_error(&mut self) {
         self.error_message.clear();
     }
-    
+
     /// Add a toast notification
     pub fn add_toast(&mut self, message: String, toast_type: ToastType) {
-        self.toast_notifications.push(ToastNotification::new(message, toast_type));
+        self.toast_notifications
+            .push(ToastNotification::new(message, toast_type));
     }
-    
+
     /// Add a toast notification with custom duration
-    pub fn add_toast_with_duration(&mut self, message: String, toast_type: ToastType, duration: Duration) {
-        self.toast_notifications.push(ToastNotification::with_duration(message, toast_type, duration));
+    pub fn add_toast_with_duration(
+        &mut self,
+        message: String,
+        toast_type: ToastType,
+        duration: Duration,
+    ) {
+        self.toast_notifications
+            .push(ToastNotification::with_duration(
+                message, toast_type, duration,
+            ));
     }
-    
+
     /// Remove expired toast notifications
     pub fn cleanup_expired_toasts(&mut self) {
         self.toast_notifications.retain(|toast| !toast.is_expired());
     }
-    
+
     /// Clear all toast notifications
     pub fn clear_toasts(&mut self) {
         self.toast_notifications.clear();

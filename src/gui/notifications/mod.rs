@@ -10,7 +10,7 @@ impl OSNotifications {
             .timeout(Timeout::Milliseconds(5000))
             .show();
     }
-    
+
     pub fn error(title: &str, message: &str) {
         let _ = Notification::new()
             .summary(title)
@@ -18,7 +18,7 @@ impl OSNotifications {
             .timeout(Timeout::Milliseconds(8000))
             .show();
     }
-    
+
     pub fn warning(title: &str, message: &str) {
         let _ = Notification::new()
             .summary(title)
@@ -26,7 +26,7 @@ impl OSNotifications {
             .timeout(Timeout::Milliseconds(6000))
             .show();
     }
-    
+
     pub fn info(title: &str, message: &str) {
         let _ = Notification::new()
             .summary(title)

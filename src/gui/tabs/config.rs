@@ -1,10 +1,10 @@
 use crate::config::Config;
+use crate::gui::notifications::{notify_error, notify_success};
 use crate::gui::state::UiState;
-use crate::gui::theme::{BasicTheme, Layout, styled_panel, grouped_section, full_width_button};
-use crate::gui::notifications::{notify_success, notify_error};
-use std::sync::{Arc, Mutex};
-use serde::{Serialize, Deserialize};
+use crate::gui::theme::{full_width_button, grouped_section, styled_panel, BasicTheme, Layout};
 use num_cpus;
+use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
 
 pub fn render_config_tab(ui: &mut egui::Ui, ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
     ui.heading("Configuration");
@@ -12,17 +12,17 @@ pub fn render_config_tab(ui: &mut egui::Ui, ui_state: &mut UiState, config: Arc<
 
     // DVD Settings
     render_dvd_settings(ui, ui_state);
-    
+
     ui.add_space(Layout::SPACING_LARGE);
 
     // Output Settings
     render_output_settings(ui, ui_state);
-    
+
     ui.add_space(Layout::SPACING_LARGE);
 
     // Quality Settings
     render_quality_settings(ui, ui_state);
-    
+
     ui.add_space(Layout::SPACING_LARGE);
 
     // Save/Load Settings
@@ -34,14 +34,20 @@ fn render_dvd_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
         grouped_section(ui, "DVD Settings", |ui| {
             ui.horizontal(|ui| {
                 ui.label("Input path:");
-                ui.add_sized([200.0, 20.0], egui::TextEdit::singleline(&mut ui_state.input_path));
-                
+                ui.add_sized(
+                    [200.0, 20.0],
+                    egui::TextEdit::singleline(&mut ui_state.input_path),
+                );
+
                 if ui.button("Browse").clicked() {
                     browse_for_input(ui_state);
                 }
             });
-            
-            ui.checkbox(&mut ui_state.config_temp.auto_download, "Auto-detect DVD drives");
+
+            ui.checkbox(
+                &mut ui_state.config_temp.auto_download,
+                "Auto-detect DVD drives",
+            );
             ui.checkbox(&mut ui_state.main_feature_only, "Main feature only");
         });
     });
@@ -52,31 +58,55 @@ fn render_output_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
         grouped_section(ui, "Output Settings", |ui| {
             ui.horizontal(|ui| {
                 ui.label("Output directory:");
-                ui.add_sized([200.0, 20.0], egui::TextEdit::singleline(&mut ui_state.output_path));
-                
+                ui.add_sized(
+                    [200.0, 20.0],
+                    egui::TextEdit::singleline(&mut ui_state.output_path),
+                );
+
                 if ui.button("Browse").clicked() {
                     browse_for_output(ui_state);
                 }
             });
-            
+
             ui.horizontal(|ui| {
                 ui.label("Output format:");
                 egui::ComboBox::from_id_source("output_format_combo")
                     .selected_text(&ui_state.config_temp.encode_algo)
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut ui_state.config_temp.encode_algo, "MP4".to_string(), "MP4");
-                        ui.selectable_value(&mut ui_state.config_temp.encode_algo, "MKV".to_string(), "MKV");
-                        ui.selectable_value(&mut ui_state.config_temp.encode_algo, "AVI".to_string(), "AVI");
+                        ui.selectable_value(
+                            &mut ui_state.config_temp.encode_algo,
+                            "MP4".to_string(),
+                            "MP4",
+                        );
+                        ui.selectable_value(
+                            &mut ui_state.config_temp.encode_algo,
+                            "MKV".to_string(),
+                            "MKV",
+                        );
+                        ui.selectable_value(
+                            &mut ui_state.config_temp.encode_algo,
+                            "AVI".to_string(),
+                            "AVI",
+                        );
                     });
             });
-            
+
             ui.horizontal(|ui| {
                 ui.label("Filename pattern:");
-                ui.add_sized([200.0, 20.0], egui::TextEdit::singleline(&mut ui_state.config_temp.naming_pattern));
+                ui.add_sized(
+                    [200.0, 20.0],
+                    egui::TextEdit::singleline(&mut ui_state.config_temp.naming_pattern),
+                );
             });
-            
-            ui.checkbox(&mut ui_state.config_temp.organize_by_date, "Create subfolders for each DVD");
-            ui.checkbox(&mut ui_state.config_temp.auto_cleanup, "Overwrite existing files");
+
+            ui.checkbox(
+                &mut ui_state.config_temp.organize_by_date,
+                "Create subfolders for each DVD",
+            );
+            ui.checkbox(
+                &mut ui_state.config_temp.auto_cleanup,
+                "Overwrite existing files",
+            );
         });
     });
 }
@@ -86,27 +116,51 @@ fn render_quality_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
         grouped_section(ui, "Quality Settings", |ui| {
             ui.horizontal(|ui| {
                 ui.label("Video quality:");
-                ui.add_sized([200.0, 20.0], egui::TextEdit::singleline(&mut ui_state.config_temp.custom_args));
+                ui.add_sized(
+                    [200.0, 20.0],
+                    egui::TextEdit::singleline(&mut ui_state.config_temp.custom_args),
+                );
             });
-            
+
             ui.horizontal(|ui| {
                 ui.label("Video codec:");
                 egui::ComboBox::from_id_source("video_codec_combo")
                     .selected_text(&ui_state.config_temp.video_codec)
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut ui_state.config_temp.video_codec, "H.264".to_string(), "H.264");
-                        ui.selectable_value(&mut ui_state.config_temp.video_codec, "H.265".to_string(), "H.265");
-                        ui.selectable_value(&mut ui_state.config_temp.video_codec, "VP9".to_string(), "VP9");
+                        ui.selectable_value(
+                            &mut ui_state.config_temp.video_codec,
+                            "H.264".to_string(),
+                            "H.264",
+                        );
+                        ui.selectable_value(
+                            &mut ui_state.config_temp.video_codec,
+                            "H.265".to_string(),
+                            "H.265",
+                        );
+                        ui.selectable_value(
+                            &mut ui_state.config_temp.video_codec,
+                            "VP9".to_string(),
+                            "VP9",
+                        );
                     });
             });
-            
+
             ui.horizontal(|ui| {
                 ui.label("Thread count:");
-                ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut ui_state.config_temp.thread_count));
+                ui.add_sized(
+                    [100.0, 20.0],
+                    egui::TextEdit::singleline(&mut ui_state.config_temp.thread_count),
+                );
             });
-            
-            ui.checkbox(&mut ui_state.config_temp.gpu_acceleration, "GPU acceleration");
-            ui.checkbox(&mut ui_state.config_temp.two_pass_encoding, "Two-pass encoding");
+
+            ui.checkbox(
+                &mut ui_state.config_temp.gpu_acceleration,
+                "GPU acceleration",
+            );
+            ui.checkbox(
+                &mut ui_state.config_temp.two_pass_encoding,
+                "Two-pass encoding",
+            );
         });
     });
 }
@@ -117,33 +171,33 @@ fn render_config_actions(ui: &mut egui::Ui, ui_state: &mut UiState, config: Arc<
             if full_width_button(ui, "Save Settings").clicked() {
                 save_config(ui_state, config.clone());
             }
-            
+
             ui.add_space(Layout::SPACING_SMALL);
-            
+
             if full_width_button(ui, "Load Settings").clicked() {
                 load_config(ui_state, config.clone());
             }
-            
+
             ui.add_space(Layout::SPACING_SMALL);
-            
+
             if full_width_button(ui, "Reset to Defaults").clicked() {
                 reset_to_defaults(ui_state);
             }
-            
+
             ui.add_space(Layout::SPACING);
-            
+
             if full_width_button(ui, "Export Config").clicked() {
                 export_config(ui_state);
             }
-            
+
             ui.add_space(Layout::SPACING_SMALL);
-            
+
             if full_width_button(ui, "Import Config").clicked() {
                 import_config(ui_state);
             }
-            
+
             ui.add_space(Layout::SPACING);
-            
+
             if full_width_button(ui, "Open App Cache Folder").clicked() {
                 open_app_cache_folder();
             }
@@ -166,7 +220,7 @@ fn browse_for_output(ui_state: &mut UiState) {
         .pick_folder()
     {
         ui_state.output_path = path.to_string_lossy().to_string();
-        
+
         // Set as default if empty
         if ui_state.output_path.is_empty() {
             ui_state.output_path = std::env::home_dir()
@@ -240,21 +294,29 @@ fn save_config(ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
         config.output_dir = ui_state.output_path.clone().into();
         config.encode_algo = ui_state.config_temp.encode_algo.clone();
         config.video_codec = ui_state.config_temp.video_codec.clone();
-        config.thread_count = ui_state.config_temp.thread_count.parse().unwrap_or(num_cpus::get().max(1));
+        config.thread_count = ui_state
+            .config_temp
+            .thread_count
+            .parse()
+            .unwrap_or(num_cpus::get().max(1));
         config.eject_after_rip = ui_state.config_temp.eject_after_rip;
         config.chapter_split = ui_state.chapter_split;
-        
+
         // Update HandBrake path if provided
         if !ui_state.config_temp.handbrake_path.is_empty() {
             config.handbrake_path = Some(ui_state.config_temp.handbrake_path.clone().into());
         }
-        
+
         // Update HandBrake management settings
         config.handbrake_management.auto_download = ui_state.config_temp.auto_download;
         config.handbrake_management.prefer_system = ui_state.config_temp.prefer_system;
-        config.handbrake_management.max_cache_size_mb = ui_state.config_temp.max_cache_size_mb.parse().unwrap_or(100);
+        config.handbrake_management.max_cache_size_mb = ui_state
+            .config_temp
+            .max_cache_size_mb
+            .parse()
+            .unwrap_or(100);
         config.handbrake_management.verify_on_startup = ui_state.config_temp.verify_on_startup;
-        
+
         if let Err(e) = config.save() {
             notify_error(&format!("Failed to save config: {}", e));
         } else {
@@ -269,11 +331,11 @@ fn load_config(ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
     if let Ok(config) = config.try_lock() {
         // Load config into UI state
         ui_state.load_config_temp(&config);
-        
+
         // Also update UI-specific fields that aren't in config_temp
         ui_state.output_path = config.output_dir.to_string_lossy().to_string();
         ui_state.chapter_split = config.chapter_split;
-        
+
         notify_success("Configuration loaded successfully");
     } else {
         notify_error("Failed to load configuration");
@@ -289,7 +351,7 @@ fn reset_to_defaults(ui_state: &mut UiState) {
         .to_string();
     ui_state.config_temp = crate::gui::state::ConfigTemp::default();
     ui_state.main_feature_only = false;
-    
+
     notify_success("Settings reset to defaults");
 }
 
@@ -301,14 +363,12 @@ fn export_config(ui_state: &mut UiState) {
     {
         // Create exportable config from UI state
         let export_config = create_export_config(ui_state);
-        
+
         match serde_json::to_string_pretty(&export_config) {
-            Ok(json_content) => {
-                match std::fs::write(&path, json_content) {
-                    Ok(_) => notify_success(&format!("Configuration exported to {}", path.display())),
-                    Err(e) => notify_error(&format!("Failed to write config file: {}", e)),
-                }
-            }
+            Ok(json_content) => match std::fs::write(&path, json_content) {
+                Ok(_) => notify_success(&format!("Configuration exported to {}", path.display())),
+                Err(e) => notify_error(&format!("Failed to write config file: {}", e)),
+            },
             Err(e) => notify_error(&format!("Failed to serialize configuration: {}", e)),
         }
     }
@@ -321,15 +381,13 @@ fn import_config(ui_state: &mut UiState) {
         .pick_file()
     {
         match std::fs::read_to_string(&path) {
-            Ok(content) => {
-                match serde_json::from_str::<ExportableConfig>(&content) {
-                    Ok(imported_config) => {
-                        apply_imported_config(ui_state, imported_config);
-                        notify_success(&format!("Configuration imported from {}", path.display()));
-                    }
-                    Err(e) => notify_error(&format!("Failed to parse config file: {}", e)),
+            Ok(content) => match serde_json::from_str::<ExportableConfig>(&content) {
+                Ok(imported_config) => {
+                    apply_imported_config(ui_state, imported_config);
+                    notify_success(&format!("Configuration imported from {}", path.display()));
                 }
-            }
+                Err(e) => notify_error(&format!("Failed to parse config file: {}", e)),
+            },
             Err(e) => notify_error(&format!("Failed to read config file: {}", e)),
         }
     }
@@ -337,16 +395,16 @@ fn import_config(ui_state: &mut UiState) {
 
 fn open_app_cache_folder() {
     use directories::ProjectDirs;
-    
+
     if let Some(project_dirs) = ProjectDirs::from("com", "sleepyyui", "copydvd") {
         let cache_dir = project_dirs.cache_dir();
-        
+
         // Create cache directory if it doesn't exist
         if let Err(e) = std::fs::create_dir_all(cache_dir) {
             notify_error(&format!("Failed to create cache directory: {}", e));
             return;
         }
-        
+
         // Open the cache directory
         if let Err(e) = open::that(cache_dir) {
             notify_error(&format!("Failed to open cache folder: {}", e));

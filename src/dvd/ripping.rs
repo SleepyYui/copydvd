@@ -105,9 +105,10 @@ impl Dvd {
         // You could use process.stdout and process.stderr to parse progress here
         // For now, just wait for completion.
 
-        let output = process.wait_with_output().await.map_err(|e| {
-            AppError::HandbrakeError(format!("HandBrake execution failed: {}", e))
-        })?;
+        let output = process
+            .wait_with_output()
+            .await
+            .map_err(|e| AppError::HandbrakeError(format!("HandBrake execution failed: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);

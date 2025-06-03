@@ -1,4 +1,4 @@
-use crate::config::{Config, ServerConfig, HandBrakeManagementConfig};
+use crate::config::{Config, HandBrakeManagementConfig, ServerConfig};
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -36,12 +36,14 @@ mod tests {
         };
 
         // Save config
-        let config_json = serde_json::to_string_pretty(&original_config).expect("Failed to serialize config");
+        let config_json =
+            serde_json::to_string_pretty(&original_config).expect("Failed to serialize config");
         std::fs::write(&config_path, config_json).expect("Failed to write config");
 
         // Load config
         let loaded_json = std::fs::read_to_string(&config_path).expect("Failed to read config");
-        let loaded_config: Config = serde_json::from_str(&loaded_json).expect("Failed to deserialize config");
+        let loaded_config: Config =
+            serde_json::from_str(&loaded_json).expect("Failed to deserialize config");
 
         // Verify all fields match
         assert_eq!(original_config.handbrake_path, loaded_config.handbrake_path);
@@ -49,7 +51,10 @@ mod tests {
         assert_eq!(original_config.encode_algo, loaded_config.encode_algo);
         assert_eq!(original_config.video_codec, loaded_config.video_codec);
         assert_eq!(original_config.chapter_split, loaded_config.chapter_split);
-        assert_eq!(original_config.eject_after_rip, loaded_config.eject_after_rip);
+        assert_eq!(
+            original_config.eject_after_rip,
+            loaded_config.eject_after_rip
+        );
         assert_eq!(original_config.thread_count, loaded_config.thread_count);
 
         // Verify server config
@@ -62,16 +67,28 @@ mod tests {
         assert_eq!(original_server.path, loaded_server.path);
 
         // Verify HandBrake management config
-        assert_eq!(original_config.handbrake_management.auto_download, loaded_config.handbrake_management.auto_download);
-        assert_eq!(original_config.handbrake_management.prefer_system, loaded_config.handbrake_management.prefer_system);
-        assert_eq!(original_config.handbrake_management.max_cache_size_mb, loaded_config.handbrake_management.max_cache_size_mb);
-        assert_eq!(original_config.handbrake_management.verify_on_startup, loaded_config.handbrake_management.verify_on_startup);
+        assert_eq!(
+            original_config.handbrake_management.auto_download,
+            loaded_config.handbrake_management.auto_download
+        );
+        assert_eq!(
+            original_config.handbrake_management.prefer_system,
+            loaded_config.handbrake_management.prefer_system
+        );
+        assert_eq!(
+            original_config.handbrake_management.max_cache_size_mb,
+            loaded_config.handbrake_management.max_cache_size_mb
+        );
+        assert_eq!(
+            original_config.handbrake_management.verify_on_startup,
+            loaded_config.handbrake_management.verify_on_startup
+        );
     }
 
     #[test]
     fn test_config_default() {
         let config = Config::default();
-        
+
         assert!(config.handbrake_path.is_none());
         assert!(config.output_dir.ends_with("outs"));
         assert_eq!(config.encode_algo, "MP4");
@@ -95,8 +112,10 @@ mod tests {
             path: "/uploads".to_string(),
         };
 
-        let json = serde_json::to_string(&server_config).expect("Failed to serialize server config");
-        let loaded: ServerConfig = serde_json::from_str(&json).expect("Failed to deserialize server config");
+        let json =
+            serde_json::to_string(&server_config).expect("Failed to serialize server config");
+        let loaded: ServerConfig =
+            serde_json::from_str(&json).expect("Failed to deserialize server config");
 
         assert_eq!(server_config.host, loaded.host);
         assert_eq!(server_config.username, loaded.username);

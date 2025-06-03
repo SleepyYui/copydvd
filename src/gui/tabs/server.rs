@@ -1,7 +1,10 @@
 use crate::config::Config;
+use crate::gui::notifications::{notify_error, notify_info, notify_success};
 use crate::gui::state::UiState;
-use crate::gui::theme::{BasicTheme, Layout, styled_panel, grouped_section, full_width_button, status_indicator, StatusType};
-use crate::gui::notifications::{notify_success, notify_error, notify_info};
+use crate::gui::theme::{
+    full_width_button, grouped_section, status_indicator, styled_panel, BasicTheme, Layout,
+    StatusType,
+};
 use std::sync::{Arc, Mutex};
 
 pub fn render_server_tab(ui: &mut egui::Ui, ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
@@ -10,17 +13,17 @@ pub fn render_server_tab(ui: &mut egui::Ui, ui_state: &mut UiState, config: Arc<
 
     // Connection Settings
     render_connection_settings(ui, ui_state);
-    
+
     ui.add_space(Layout::SPACING_LARGE);
 
     // Upload Settings
     render_upload_settings(ui, ui_state);
-    
+
     ui.add_space(Layout::SPACING_LARGE);
 
     // Transfer Options
     render_transfer_options(ui, ui_state);
-    
+
     ui.add_space(Layout::SPACING_LARGE);
 
     // Configuration Actions
@@ -37,20 +40,26 @@ async fn test_connection(
     use std::time::Duration;
     use tokio::net::TcpStream;
     use tokio::time::timeout;
-    
-    tracing::info!("Testing connection to {}:{} using {}", host, port, upload_method);
-    
+
+    tracing::info!(
+        "Testing connection to {}:{} using {}",
+        host,
+        port,
+        upload_method
+    );
+
     // Basic TCP connectivity test
     let tcp_result = timeout(
         Duration::from_secs(10),
-        TcpStream::connect(format!("{}:{}", host, port))
-    ).await;
-    
+        TcpStream::connect(format!("{}:{}", host, port)),
+    )
+    .await;
+
     match tcp_result {
         Ok(Ok(stream)) => {
             drop(stream);
             tracing::info!("TCP connection successful to {}:{}", host, port);
-            
+
             // For different upload methods, we could add specific protocol tests here
             match upload_method.to_lowercase().as_str() {
                 "ssh" | "scp" | "sftp" => {
@@ -68,9 +77,7 @@ async fn test_connection(
                     tracing::info!("Rsync connection would be tested here");
                     Ok(())
                 }
-                _ => {
-                    Err(format!("Unsupported upload method: {}", upload_method))
-                }
+                _ => Err(format!("Unsupported upload method: {}", upload_method)),
             }
         }
         Ok(Err(e)) => {
@@ -91,26 +98,38 @@ fn render_connection_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
         grouped_section(ui, "Connection Settings", |ui| {
             ui.horizontal(|ui| {
                 ui.label("Server host:");
-                ui.add_sized([200.0, 20.0], egui::TextEdit::singleline(&mut ui_state.config_temp.server_host));
+                ui.add_sized(
+                    [200.0, 20.0],
+                    egui::TextEdit::singleline(&mut ui_state.config_temp.server_host),
+                );
             });
-            
+
             ui.horizontal(|ui| {
                 ui.label("Username:");
-                ui.add_sized([200.0, 20.0], egui::TextEdit::singleline(&mut ui_state.config_temp.server_username));
+                ui.add_sized(
+                    [200.0, 20.0],
+                    egui::TextEdit::singleline(&mut ui_state.config_temp.server_username),
+                );
             });
-            
+
             ui.horizontal(|ui| {
                 ui.label("Password:");
-                ui.add_sized([200.0, 20.0], egui::TextEdit::singleline(&mut ui_state.config_temp.server_password));
+                ui.add_sized(
+                    [200.0, 20.0],
+                    egui::TextEdit::singleline(&mut ui_state.config_temp.server_password),
+                );
             });
-            
+
             ui.horizontal(|ui| {
                 ui.label("Remote path:");
-                ui.add_sized([200.0, 20.0], egui::TextEdit::singleline(&mut ui_state.config_temp.server_path));
+                ui.add_sized(
+                    [200.0, 20.0],
+                    egui::TextEdit::singleline(&mut ui_state.config_temp.server_path),
+                );
             });
-            
+
             ui.add_space(Layout::SPACING);
-            
+
             if full_width_button(ui, "Test Connection").clicked() {
                 test_server_connection(ui_state);
             }
@@ -121,10 +140,22 @@ fn render_connection_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
 fn render_upload_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
     styled_panel(ui, |ui| {
         grouped_section(ui, "Upload Settings", |ui| {
-            ui.checkbox(&mut ui_state.config_temp.compress_transfer, "Compress files during transfer");
-            ui.checkbox(&mut ui_state.config_temp.resume_uploads, "Resume interrupted uploads");
-            ui.checkbox(&mut ui_state.config_temp.preserve_permissions, "Preserve file permissions");
-            ui.checkbox(&mut ui_state.config_temp.delete_after_upload, "Delete local files after successful upload");
+            ui.checkbox(
+                &mut ui_state.config_temp.compress_transfer,
+                "Compress files during transfer",
+            );
+            ui.checkbox(
+                &mut ui_state.config_temp.resume_uploads,
+                "Resume interrupted uploads",
+            );
+            ui.checkbox(
+                &mut ui_state.config_temp.preserve_permissions,
+                "Preserve file permissions",
+            );
+            ui.checkbox(
+                &mut ui_state.config_temp.delete_after_upload,
+                "Delete local files after successful upload",
+            );
         });
     });
 }
@@ -137,16 +168,22 @@ fn render_transfer_options(ui: &mut egui::Ui, ui_state: &mut UiState) {
             } else {
                 status_indicator(ui, "Upload disabled", StatusType::Info);
             }
-            
+
             ui.add_space(Layout::SPACING);
-            
+
             ui.horizontal(|ui| {
-                ui.checkbox(&mut ui_state.upload_to_server, "Enable automatic upload after ripping");
+                ui.checkbox(
+                    &mut ui_state.upload_to_server,
+                    "Enable automatic upload after ripping",
+                );
             });
-            
+
             if ui_state.upload_to_server && !ui_state.config_temp.server_host.is_empty() {
                 ui.add_space(Layout::SPACING);
-                ui.label(format!("Files will be uploaded to: {}", ui_state.config_temp.server_host));
+                ui.label(format!(
+                    "Files will be uploaded to: {}",
+                    ui_state.config_temp.server_host
+                ));
             }
         });
     });
@@ -158,15 +195,15 @@ fn render_server_actions(ui: &mut egui::Ui, ui_state: &mut UiState, config: Arc<
             if full_width_button(ui, "Save Server Settings").clicked() {
                 save_server_config(ui_state, config.clone());
             }
-            
+
             ui.add_space(Layout::SPACING_SMALL);
-            
+
             if full_width_button(ui, "Load Server Settings").clicked() {
                 load_server_config(ui_state, config.clone());
             }
-            
+
             ui.add_space(Layout::SPACING);
-            
+
             if full_width_button(ui, "Clear Settings").clicked() {
                 clear_server_settings(ui_state);
             }
@@ -179,24 +216,24 @@ fn test_server_connection(ui_state: &mut UiState) {
         notify_error("Please enter a server host");
         return;
     }
-    
+
     if ui_state.config_temp.server_username.is_empty() {
         notify_error("Please enter a username");
         return;
     }
-    
+
     notify_info("Testing server connection...");
-    
+
     // Clone data for async operation
     let host = ui_state.config_temp.server_host.clone();
     let username = ui_state.config_temp.server_username.clone();
     let password = ui_state.config_temp.server_password.clone();
     let port = 22; // Default SSH port
     let upload_method = "ssh".to_string(); // Default upload method
-    
+
     tokio::spawn(async move {
         let result = test_connection(&host, port, &username, &password, &upload_method).await;
-        
+
         match result {
             Ok(_) => notify_success("Server connection test successful"),
             Err(e) => notify_error(&format!("Connection test failed: {}", e)),
@@ -217,10 +254,10 @@ fn save_server_config(ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
             },
             path: ui_state.config_temp.server_path.clone(),
         };
-        
+
         // Update server config
         config.server = Some(server_config);
-        
+
         if let Err(e) = config.save() {
             notify_error(&format!("Failed to save server config: {}", e));
         } else {
@@ -246,7 +283,7 @@ fn load_server_config(ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
             ui_state.config_temp.server_password.clear();
             ui_state.config_temp.server_path.clear();
         }
-        
+
         // Also load other config fields
         ui_state.load_config_temp(&config);
         notify_success("Server configuration loaded successfully");
@@ -261,6 +298,6 @@ fn clear_server_settings(ui_state: &mut UiState) {
     ui_state.config_temp.server_password.clear();
     ui_state.config_temp.server_path.clear();
     ui_state.upload_to_server = false;
-    
+
     notify_success("Server settings cleared");
 }

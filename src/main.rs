@@ -10,8 +10,8 @@ mod config;
 mod dvd;
 mod error;
 mod gui;
-mod handbrake_manager;
 mod handbrake_auto_fix;
+mod handbrake_manager;
 mod upload;
 mod utils;
 
@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
         .with_env_filter(
             EnvFilter::try_from_default_env()
                 .or_else(|_| EnvFilter::try_new("info,copy_dvd=debug"))
-                .unwrap()
+                .unwrap(),
         )
         .with_target(false)
         .with_thread_ids(false)
@@ -34,8 +34,15 @@ async fn main() -> Result<()> {
         .init();
 
     info!("=== Copy DVD Application Starting ===");
-    info!("Platform: {} {}", std::env::consts::OS, std::env::consts::ARCH);
-    info!("Working directory: {:?}", std::env::current_dir().unwrap_or_default());
+    info!(
+        "Platform: {} {}",
+        std::env::consts::OS,
+        std::env::consts::ARCH
+    );
+    info!(
+        "Working directory: {:?}",
+        std::env::current_dir().unwrap_or_default()
+    );
 
     // Set environment variables to work around font rendering issues on macOS
     #[cfg(target_os = "macos")]
