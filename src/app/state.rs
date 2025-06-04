@@ -14,12 +14,17 @@ pub struct AppState {
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppStatus {
     Idle,
+    #[allow(dead_code)]
     Ready, // Added Ready
     Scanning,
+    #[allow(dead_code)]
     ScanComplete(usize), // Added ScanComplete with title count
     Ripping { completed: usize, total: usize },
+    #[allow(dead_code)]
     RipComplete,                 // Added RipComplete
+    #[allow(dead_code)]
     Uploading { progress: f32 }, // Added Uploading with progress
+    #[allow(dead_code)]
     UploadComplete,              // Added UploadComplete
     Completed,
     Error(String),

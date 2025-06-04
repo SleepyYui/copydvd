@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::gui::notifications::{notify_error, notify_info, notify_success};
 use crate::gui::state::UiState;
 use crate::gui::theme::{
-    full_width_button, grouped_section, status_indicator, styled_panel, BasicTheme, Layout,
+    full_width_button, grouped_section, status_indicator, styled_panel, Layout,
     StatusType,
 };
 use std::sync::{Arc, Mutex};

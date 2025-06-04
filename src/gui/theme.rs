@@ -11,11 +11,14 @@ impl BasicTheme {
 
     // Text colors
     pub const TEXT_PRIMARY: Color32 = Color32::from_rgb(220, 220, 220);
+    #[allow(dead_code)]
     pub const TEXT_SECONDARY: Color32 = Color32::from_rgb(180, 180, 180);
+    #[allow(dead_code)]
     pub const TEXT_MUTED: Color32 = Color32::from_rgb(140, 140, 140);
 
     // Accent colors
     pub const ACCENT: Color32 = Color32::from_rgb(70, 130, 180);
+    #[allow(dead_code)]
     pub const ACCENT_HOVER: Color32 = Color32::from_rgb(90, 150, 200);
     pub const SUCCESS: Color32 = Color32::from_rgb(60, 150, 60);
     pub const WARNING: Color32 = Color32::from_rgb(200, 150, 60);
@@ -37,6 +40,7 @@ impl Layout {
     pub const SPACING_SMALL: f32 = 4.0;
     pub const SPACING_LARGE: f32 = 16.0;
     pub const BUTTON_HEIGHT: f32 = 28.0;
+    #[allow(dead_code)]
     pub const INPUT_HEIGHT: f32 = 24.0;
     pub const ROUNDING: f32 = 4.0;
     pub const BORDER_WIDTH: f32 = 1.0;

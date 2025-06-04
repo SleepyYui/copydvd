@@ -2,15 +2,14 @@ use crate::error::{AppError, Result};
 use crate::handbrake_auto_fix::MacOSAutoFix;
 use anyhow::Context;
 use directories::ProjectDirs;
-use futures_util::StreamExt;
-use reqwest;
+
 use sha2::{Digest, Sha256};
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 use zip::ZipArchive;
 
 // Progress callback type for UI updates
@@ -52,6 +51,7 @@ impl HandBrakeManager {
         })
     }
 
+    #[allow(dead_code)]
     pub fn set_progress_callback(&mut self, callback: ProgressCallback) {
         self.progress_callback = Some(callback);
     }
@@ -486,21 +486,17 @@ impl HandBrakeManager {
             Some(path) => path,
             None => {
                 // List contents of app bundle for debugging
-                if let Ok(contents_dir) = std::fs::read_dir(&app_path.join("Contents")) {
+                if let Ok(contents_dir) = std::fs::read_dir(app_path.join("Contents")) {
                     info!("Contents of {}/Contents:", app_path.display());
-                    for entry in contents_dir {
-                        if let Ok(entry) = entry {
-                            info!("  {}", entry.file_name().to_string_lossy());
-                        }
+                    for entry in contents_dir.flatten() {
+                        info!("  {}", entry.file_name().to_string_lossy());
                     }
                 }
 
-                if let Ok(macos_dir) = std::fs::read_dir(&app_path.join("Contents/MacOS")) {
+                if let Ok(macos_dir) = std::fs::read_dir(app_path.join("Contents/MacOS")) {
                     info!("Contents of {}/Contents/MacOS:", app_path.display());
-                    for entry in macos_dir {
-                        if let Ok(entry) = entry {
-                            info!("  {}", entry.file_name().to_string_lossy());
-                        }
+                    for entry in macos_dir.flatten() {
+                        info!("  {}", entry.file_name().to_string_lossy());
                     }
                 }
 

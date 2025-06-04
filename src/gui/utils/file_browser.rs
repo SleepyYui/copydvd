@@ -1,7 +1,8 @@
 use crate::gui::state::UiState;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Browse for DVD input source (drive or folder)
+#[allow(dead_code)]
 pub fn browse_for_dvd_input(ui_state: &mut UiState) {
     if let Some(path) = rfd::FileDialog::new()
         .set_title("Select DVD Drive or Folder")
@@ -12,6 +13,7 @@ pub fn browse_for_dvd_input(ui_state: &mut UiState) {
 }
 
 /// Browse for output directory
+#[allow(dead_code)]
 pub fn browse_for_output_directory(ui_state: &mut UiState) {
     if let Some(path) = rfd::FileDialog::new()
         .set_title("Select Output Directory")
@@ -22,6 +24,7 @@ pub fn browse_for_output_directory(ui_state: &mut UiState) {
 }
 
 /// Browse for HandBrake executable
+#[allow(dead_code)]
 pub fn browse_for_handbrake_executable(ui_state: &mut UiState) {
     let mut dialog = rfd::FileDialog::new().set_title("Select HandBrakeCLI Executable");
 
@@ -42,6 +45,7 @@ pub fn browse_for_handbrake_executable(ui_state: &mut UiState) {
 }
 
 /// Browse for configuration file to import
+#[allow(dead_code)]
 pub fn browse_for_config_import() -> Option<PathBuf> {
     rfd::FileDialog::new()
         .set_title("Import Configuration")
@@ -50,6 +54,7 @@ pub fn browse_for_config_import() -> Option<PathBuf> {
 }
 
 /// Browse for configuration file export location
+#[allow(dead_code)]
 pub fn browse_for_config_export() -> Option<PathBuf> {
     rfd::FileDialog::new()
         .set_title("Export Configuration")
@@ -58,7 +63,8 @@ pub fn browse_for_config_export() -> Option<PathBuf> {
         .save_file()
 }
 
-/// Browse for server profile import
+/// Browse for server profile file to import
+#[allow(dead_code)]
 pub fn browse_for_server_profile_import() -> Option<PathBuf> {
     rfd::FileDialog::new()
         .set_title("Import Server Profile")
@@ -67,6 +73,7 @@ pub fn browse_for_server_profile_import() -> Option<PathBuf> {
 }
 
 /// Browse for server profile export location
+#[allow(dead_code)]
 pub fn browse_for_server_profile_export() -> Option<PathBuf> {
     rfd::FileDialog::new()
         .set_title("Export Server Profile")
@@ -75,7 +82,8 @@ pub fn browse_for_server_profile_export() -> Option<PathBuf> {
         .save_file()
 }
 
-/// Get available DVD drives on the system
+/// Get list of available DVD drives on the system
+#[allow(dead_code)]
 pub fn get_available_dvd_drives() -> Vec<PathBuf> {
     let mut drives = Vec::new();
 
@@ -163,34 +171,11 @@ pub fn get_available_dvd_drives() -> Vec<PathBuf> {
     drives
 }
 
-/// Check if a path appears to be a DVD
-pub fn is_dvd_path(path: &PathBuf) -> bool {
-    // Check for VIDEO_TS folder (standard DVD structure)
-    let video_ts = path.join("VIDEO_TS");
-    if video_ts.exists() && video_ts.is_dir() {
-        return true;
-    }
 
-    // Check for common DVD file patterns
-    if let Ok(entries) = std::fs::read_dir(path) {
-        for entry in entries.flatten() {
-            if let Some(name) = entry.file_name().to_str() {
-                let name_lower = name.to_lowercase();
-                if name_lower.ends_with(".vob")
-                    || name_lower.ends_with(".ifo")
-                    || name_lower.ends_with(".bup")
-                {
-                    return true;
-                }
-            }
-        }
-    }
-
-    false
-}
 
 /// Get a user-friendly name for a DVD path
-pub fn get_dvd_display_name(path: &PathBuf) -> String {
+#[allow(dead_code)]
+pub fn get_dvd_display_name(path: &Path) -> String {
     if let Some(file_name) = path.file_name() {
         file_name.to_string_lossy().to_string()
     } else {
@@ -199,6 +184,7 @@ pub fn get_dvd_display_name(path: &PathBuf) -> String {
 }
 
 /// Validate that a path exists and is accessible
+#[allow(dead_code)]
 pub fn validate_path(path: &str) -> Result<(), String> {
     if path.is_empty() {
         return Err("Path cannot be empty".to_string());
@@ -222,6 +208,7 @@ pub fn validate_path(path: &str) -> Result<(), String> {
 }
 
 /// Validate output directory and create if necessary
+#[allow(dead_code)]
 pub fn validate_output_directory(path: &str) -> Result<(), String> {
     if path.is_empty() {
         return Err("Output path cannot be empty".to_string());

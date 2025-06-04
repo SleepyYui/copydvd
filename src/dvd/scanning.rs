@@ -95,7 +95,7 @@ impl Dvd {
     }
 }
 
-fn parse_handbrake_json_titles(title_list: &Vec<serde_json::Value>) -> Result<Vec<Title>> {
+fn parse_handbrake_json_titles(title_list: &[serde_json::Value]) -> Result<Vec<Title>> {
     let mut titles = Vec::new();
     for (index, title_json) in title_list.iter().enumerate() {
         let duration_ms = title_json

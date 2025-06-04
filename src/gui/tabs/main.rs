@@ -140,10 +140,8 @@ fn render_title_selection(ui: &mut egui::Ui, ui_state: &mut UiState) {
             for (i, title) in ui_state.titles.iter().enumerate() {
                 ui.horizontal(|ui| {
                     let mut selected = ui_state.selected_titles.get(i).copied().unwrap_or(false);
-                    if ui.checkbox(&mut selected, "").changed() {
-                        if i < ui_state.selected_titles.len() {
-                            ui_state.selected_titles[i] = selected;
-                        }
+                    if ui.checkbox(&mut selected, "").changed() && i < ui_state.selected_titles.len() {
+                        ui_state.selected_titles[i] = selected;
                     }
 
                     ui.label(format!(
@@ -186,8 +184,8 @@ fn render_title_selection(ui: &mut egui::Ui, ui_state: &mut UiState) {
                         .collect();
 
                     // Clone necessary data for async operation
-                    let input_path = ui_state.input_path.clone();
-                    let output_path = ui_state.output_path.clone();
+                    let _input_path = ui_state.input_path.clone();
+                    let _output_path = ui_state.output_path.clone();
                     let titles = ui_state.titles.clone();
 
                     // Spawn async ripping task

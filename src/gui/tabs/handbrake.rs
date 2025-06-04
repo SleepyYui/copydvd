@@ -7,7 +7,7 @@ use crate::gui::theme::{
 };
 use std::sync::{Arc, Mutex};
 
-pub fn render_handbrake_tab(ui: &mut egui::Ui, ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
+pub fn render_handbrake_tab(ui: &mut egui::Ui, ui_state: &mut UiState, _config: Arc<Mutex<Config>>) {
     ui.heading("HandBrake Management");
     ui.separator();
 
@@ -328,7 +328,7 @@ fn refresh_cache_info(ui_state: &mut UiState) {
         };
 
         match result {
-            Ok((cache_dir, size)) => {
+            Ok((_cache_dir, size)) => {
                 let size_mb = size as f64 / 1024.0 / 1024.0;
                 notify_success(&format!("Cache info refreshed: {:.1} MB", size_mb));
             }

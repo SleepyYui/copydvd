@@ -55,6 +55,7 @@ pub async fn run() -> Result<()> {
 }
 
 /// Run the application with specified CLI arguments (for direct invocation)
+#[allow(dead_code)]
 pub async fn run_with_args(args: cli::Args) -> Result<()> {
     // Load configuration
     let config = Config::load()?;

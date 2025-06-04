@@ -34,6 +34,7 @@ pub enum UpdateCheckResult {
     UpdateAvailable {
         version: String,
         download_url: String,
+        #[allow(dead_code)]
         changelog: String,
     },
     Error(String),
@@ -208,6 +209,7 @@ pub async fn auto_check_for_updates() -> UpdateCheckResult {
 }
 
 /// Perform automatic update check if needed (with UI state mutation)
+#[allow(dead_code)]
 pub async fn auto_check_for_updates_with_ui(ui_state: &mut UiState) {
     if !should_check_for_updates_now() {
         return;
@@ -240,6 +242,7 @@ pub async fn auto_check_for_updates_with_ui(ui_state: &mut UiState) {
 }
 
 /// Manual update check triggered by user
+#[allow(dead_code)]
 pub async fn manual_check_for_updates(ui_state: &mut UiState) {
     ui_state.checking_updates = true;
     ui_state.set_status("Checking for updates...".to_string());
@@ -272,6 +275,7 @@ pub async fn manual_check_for_updates(ui_state: &mut UiState) {
 }
 
 /// Open the download URL in the default browser
+#[allow(dead_code)]
 pub fn open_download_url(url: &str) {
     if let Err(e) = open::that(url) {
         eprintln!("Failed to open download URL: {}", e);
@@ -279,6 +283,7 @@ pub fn open_download_url(url: &str) {
 }
 
 /// Get changelog for a specific version
+#[allow(dead_code)]
 pub async fn get_changelog(version: &str) -> Result<String, String> {
     const GITHUB_API_URL: &str = "https://api.github.com/repos/sleepyyui/copydvd/releases";
     const USER_AGENT: &str = concat!("copy-dvd/", env!("CARGO_PKG_VERSION"));
@@ -315,6 +320,7 @@ pub async fn get_changelog(version: &str) -> Result<String, String> {
 }
 
 /// Format changelog for display
+#[allow(dead_code)]
 pub fn format_changelog(changelog: &str) -> String {
     // Basic markdown to text conversion
     changelog
@@ -399,6 +405,7 @@ fn save_update_config(config: &UpdateConfig) -> Result<(), String> {
 }
 
 /// Set whether automatic update checking is enabled
+#[allow(dead_code)]
 pub fn set_auto_update_enabled(enabled: bool) -> Result<(), String> {
     let mut config = load_update_config().unwrap_or_default();
     config.auto_check_enabled = enabled;
@@ -406,6 +413,7 @@ pub fn set_auto_update_enabled(enabled: bool) -> Result<(), String> {
 }
 
 /// Get whether automatic update checking is enabled
+#[allow(dead_code)]
 pub fn get_auto_update_enabled() -> bool {
     load_update_config()
         .map(|config| config.auto_check_enabled)

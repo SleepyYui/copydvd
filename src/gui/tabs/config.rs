@@ -1,7 +1,8 @@
 use crate::config::Config;
 use crate::gui::notifications::{notify_error, notify_success};
 use crate::gui::state::UiState;
-use crate::gui::theme::{full_width_button, grouped_section, styled_panel, BasicTheme, Layout};
+use crate::gui::theme::{full_width_button, grouped_section, styled_panel, Layout};
+use directories::UserDirs;
 use num_cpus;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
@@ -223,9 +224,9 @@ fn browse_for_output(ui_state: &mut UiState) {
 
         // Set as default if empty
         if ui_state.output_path.is_empty() {
-            ui_state.output_path = std::env::home_dir()
+            ui_state.output_path = UserDirs::new()
+                .and_then(|user_dirs| user_dirs.video_dir().map(|p| p.to_path_buf()))
                 .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
-                .join("Movies")
                 .to_string_lossy()
                 .to_string();
         }
@@ -344,9 +345,9 @@ fn load_config(ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
 
 fn reset_to_defaults(ui_state: &mut UiState) {
     ui_state.input_path.clear();
-    ui_state.output_path = std::env::home_dir()
+    ui_state.output_path = UserDirs::new()
+        .and_then(|user_dirs| user_dirs.video_dir().map(|p| p.to_path_buf()))
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
-        .join("Movies")
         .to_string_lossy()
         .to_string();
     ui_state.config_temp = crate::gui::state::ConfigTemp::default();

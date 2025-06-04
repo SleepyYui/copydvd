@@ -1,9 +1,9 @@
-use num_cpus;
 use std::path::Path;
 use std::time::Duration;
 use tracing::info;
 
 /// Format duration as hours:minutes:seconds
+#[allow(dead_code)]
 pub fn format_duration(duration: Duration) -> String {
     let total_seconds = duration.as_secs();
     let hours = total_seconds / 3600;
@@ -14,6 +14,7 @@ pub fn format_duration(duration: Duration) -> String {
 }
 
 /// Check if a path exists and is a DVD
+#[allow(dead_code)]
 pub fn is_dvd_path(path: &Path) -> bool {
     if !path.exists() {
         return false;
@@ -40,12 +41,14 @@ pub fn is_dvd_path(path: &Path) -> bool {
 }
 
 /// Compute aspect ratio from dimensions
+#[allow(dead_code)]
 pub fn compute_aspect_ratio(width: usize, height: usize) -> (usize, usize) {
     let gcd = gcd(width, height);
     (width / gcd, height / gcd)
 }
 
 /// Calculate greatest common divisor
+#[allow(dead_code)]
 fn gcd(a: usize, b: usize) -> usize {
     if b == 0 {
         a
@@ -55,6 +58,7 @@ fn gcd(a: usize, b: usize) -> usize {
 }
 
 /// Log system information for debugging
+#[allow(dead_code)]
 pub fn log_system_info() {
     info!("System information:");
     info!("  OS: {}", std::env::consts::OS);

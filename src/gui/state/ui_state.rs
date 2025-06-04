@@ -24,6 +24,7 @@ pub struct UiState {
     pub upload_to_server: bool,
 
     /// Status messages
+    #[allow(dead_code)]
     pub status_message: String,
     pub error_message: String,
 
@@ -31,6 +32,7 @@ pub struct UiState {
     pub config_temp: ConfigTemp,
 
     /// Dialog states
+    #[allow(dead_code)]
     pub show_about_dialog: bool,
     pub show_update_dialog: bool,
     pub show_cache_clear_dialog: bool,
@@ -45,16 +47,20 @@ pub struct UiState {
     /// HandBrake operation status
     pub handbrake_status: HandBrakeOperationStatus,
 
-    /// Download progress tracking for async operations
+    /// Download progress for async operations
+    #[allow(dead_code)]
     pub download_progress: Option<Arc<std::sync::Mutex<f32>>>,
 
-    /// Phase progress tracking for HandBrake operations
+    /// HandBrake phase progress for complex operations
+    #[allow(dead_code)]
     pub handbrake_phase_progress: Option<Arc<std::sync::Mutex<(HandBrakeOperationStatus, f32)>>>,
 
     /// Toast notifications for better user feedback
+    #[allow(dead_code)]
     pub toast_notifications: Vec<ToastNotification>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct ToastNotification {
     pub message: String,
@@ -63,6 +69,7 @@ pub struct ToastNotification {
     pub duration: Duration,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum ToastType {
     Success,
@@ -71,6 +78,7 @@ pub enum ToastType {
     Info,
 }
 
+#[allow(dead_code)]
 impl ToastNotification {
     pub fn new(message: String, toast_type: ToastType) -> Self {
         Self {
@@ -97,7 +105,7 @@ impl ToastNotification {
     pub fn remaining_ratio(&self) -> f32 {
         let elapsed = self.created_at.elapsed().as_secs_f32();
         let total = self.duration.as_secs_f32();
-        1.0 - (elapsed / total).min(1.0)
+        (total - elapsed) / total
     }
 }
 
@@ -122,6 +130,7 @@ impl Tab {
         }
     }
 
+    #[allow(dead_code)]
     pub fn icon(&self) -> &'static str {
         match self {
             Tab::Main => "",
@@ -168,6 +177,7 @@ pub struct ConfigTemp {
     // Advanced encoding options
     pub gpu_acceleration: bool,
     pub two_pass_encoding: bool,
+    #[allow(dead_code)]
     pub fast_start: bool,
     pub custom_args: String,
 
@@ -188,8 +198,13 @@ pub struct ConfigTemp {
 pub enum UpdateStatus {
     Unknown,
     UpToDate,
-    UpdateAvailable { version: String, url: String },
-    Error(String),
+    UpdateAvailable { 
+        #[allow(dead_code)]
+        version: String, 
+        #[allow(dead_code)]
+        url: String 
+    },
+    Error(#[allow(dead_code)] String),
 }
 
 /// HandBrake operation status
@@ -197,11 +212,15 @@ pub enum UpdateStatus {
 pub enum HandBrakeOperationStatus {
     Idle,
     CheckingStatus,
+    #[allow(dead_code)]
     Downloading { progress: f32 },
+    #[allow(dead_code)]
     Extracting,
+    #[allow(dead_code)]
     Installing,
     VerifyingInstallation,
     ClearingCache,
+    #[allow(dead_code)]
     Error(String),
 }
 
@@ -275,6 +294,7 @@ impl UiState {
     }
 
     /// Start HandBrake download operation
+    #[allow(dead_code)]
     pub async fn download_handbrake(&mut self) -> Result<(), String> {
         self.handbrake_status = HandBrakeOperationStatus::Downloading { progress: 0.0 };
 
@@ -298,6 +318,7 @@ impl UiState {
     }
 
     /// Verify HandBrake installation
+    #[allow(dead_code)]
     pub async fn verify_handbrake(&mut self) -> Result<String, String> {
         self.handbrake_status = HandBrakeOperationStatus::VerifyingInstallation;
 
@@ -321,6 +342,7 @@ impl UiState {
     }
 
     /// Clear HandBrake cache
+    #[allow(dead_code)]
     pub async fn clear_handbrake_cache(&mut self) -> Result<(), String> {
         self.handbrake_status = HandBrakeOperationStatus::ClearingCache;
 
@@ -344,6 +366,7 @@ impl UiState {
     }
 
     /// Refresh cache information
+    #[allow(dead_code)]
     pub async fn refresh_cache_info(&mut self) {
         let manager = self.handbrake_manager.clone();
         let result = {
@@ -365,6 +388,7 @@ impl UiState {
     }
 
     /// Update selected titles when titles list changes
+    #[allow(dead_code)]
     pub fn update_titles(&mut self, new_titles: Vec<Title>) {
         if self.titles.len() != new_titles.len() {
             self.selected_titles = vec![false; new_titles.len()];
@@ -391,6 +415,7 @@ impl UiState {
     }
 
     /// Toggle title selection
+    #[allow(dead_code)]
     pub fn toggle_title(&mut self, index: usize) {
         if index < self.selected_titles.len() {
             self.selected_titles[index] = !self.selected_titles[index];
@@ -398,22 +423,26 @@ impl UiState {
     }
 
     /// Set error message and clear after delay
+    #[allow(dead_code)]
     pub fn set_error(&mut self, message: String) {
         self.error_message = message;
     }
 
     /// Clear error message
+    #[allow(dead_code)]
     pub fn clear_error(&mut self) {
         self.error_message.clear();
     }
 
     /// Add a toast notification
+    #[allow(dead_code)]
     pub fn add_toast(&mut self, message: String, toast_type: ToastType) {
         self.toast_notifications
             .push(ToastNotification::new(message, toast_type));
     }
 
     /// Add a toast notification with custom duration
+    #[allow(dead_code)]
     pub fn add_toast_with_duration(
         &mut self,
         message: String,
@@ -426,17 +455,20 @@ impl UiState {
             ));
     }
 
-    /// Remove expired toast notifications
+    /// Clean up expired toast notifications
+    #[allow(dead_code)]
     pub fn cleanup_expired_toasts(&mut self) {
         self.toast_notifications.retain(|toast| !toast.is_expired());
     }
 
     /// Clear all toast notifications
+    #[allow(dead_code)]
     pub fn clear_toasts(&mut self) {
         self.toast_notifications.clear();
     }
 
     /// Set status message
+    #[allow(dead_code)]
     pub fn set_status(&mut self, message: String) {
         self.status_message = message;
     }

@@ -19,6 +19,7 @@ impl OSNotifications {
             .show();
     }
 
+    #[allow(dead_code)]
     pub fn warning(title: &str, message: &str) {
         let _ = Notification::new()
             .summary(title)
@@ -45,6 +46,7 @@ pub fn notify_error(message: &str) {
     OSNotifications::error("Copy DVD - Error", message);
 }
 
+#[allow(dead_code)]
 pub fn notify_warning(message: &str) {
     OSNotifications::warning("Copy DVD - Warning", message);
 }

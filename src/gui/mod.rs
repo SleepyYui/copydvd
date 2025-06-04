@@ -6,8 +6,8 @@ use crate::gui::theme::apply_theme;
 use crate::gui::utils::updates::{auto_check_for_updates, UpdateCheckResult};
 use crate::handbrake_manager::HandBrakeManager;
 
-use egui::{Align, Layout, RichText, Vec2};
-use std::sync::mpsc::{self, Receiver, Sender};
+use egui::{Align, Layout, RichText};
+use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 
 pub mod components;
@@ -65,7 +65,7 @@ struct CopyDvdApp {
 
 impl CopyDvdApp {
     fn new(_cc: &eframe::CreationContext<'_>) -> Self {
-        let (update_sender, update_receiver) = mpsc::channel();
+        let (_update_sender, update_receiver) = mpsc::channel();
         let (handbrake_sender, handbrake_receiver) = mpsc::channel();
 
         // Start HandBrake verification immediately
@@ -107,7 +107,7 @@ impl CopyDvdApp {
     fn update_status(&mut self, ctx: &egui::Context) {
         self.check_for_handbrake_status();
 
-        if let Ok(state) = self.app_state.try_lock() {
+        if let Ok(_state) = self.app_state.try_lock() {
             // Note: AppState doesn't have an error field, so we'll skip this check
             // if let Some(error) = &state.error {
             //     self.ui_state.error_message = Some(error.to_string());
@@ -409,10 +409,8 @@ impl eframe::App for CopyDvdApp {
         });
 
         // Keyboard shortcuts
-        if ctx.input(|i| i.key_pressed(egui::Key::F5)) {
-            if self.ui_state.active_tab == Tab::Main {
-                self.trigger_dvd_scan();
-            }
+        if ctx.input(|i| i.key_pressed(egui::Key::F5)) && self.ui_state.active_tab == Tab::Main {
+            self.trigger_dvd_scan();
         }
 
         if ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::S)) {
