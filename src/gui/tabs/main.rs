@@ -140,7 +140,9 @@ fn render_title_selection(ui: &mut egui::Ui, ui_state: &mut UiState) {
             for (i, title) in ui_state.titles.iter().enumerate() {
                 ui.horizontal(|ui| {
                     let mut selected = ui_state.selected_titles.get(i).copied().unwrap_or(false);
-                    if ui.checkbox(&mut selected, "").changed() && i < ui_state.selected_titles.len() {
+                    if ui.checkbox(&mut selected, "").changed()
+                        && i < ui_state.selected_titles.len()
+                    {
                         ui_state.selected_titles[i] = selected;
                     }
 

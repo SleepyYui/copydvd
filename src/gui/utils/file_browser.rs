@@ -171,8 +171,6 @@ pub fn get_available_dvd_drives() -> Vec<PathBuf> {
     drives
 }
 
-
-
 /// Get a user-friendly name for a DVD path
 #[allow(dead_code)]
 pub fn get_dvd_display_name(path: &Path) -> String {

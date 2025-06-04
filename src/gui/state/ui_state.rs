@@ -198,11 +198,11 @@ pub struct ConfigTemp {
 pub enum UpdateStatus {
     Unknown,
     UpToDate,
-    UpdateAvailable { 
+    UpdateAvailable {
         #[allow(dead_code)]
-        version: String, 
+        version: String,
         #[allow(dead_code)]
-        url: String 
+        url: String,
     },
     Error(#[allow(dead_code)] String),
 }
@@ -213,7 +213,9 @@ pub enum HandBrakeOperationStatus {
     Idle,
     CheckingStatus,
     #[allow(dead_code)]
-    Downloading { progress: f32 },
+    Downloading {
+        progress: f32,
+    },
     #[allow(dead_code)]
     Extracting,
     #[allow(dead_code)]

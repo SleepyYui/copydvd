@@ -19,13 +19,18 @@ pub enum AppStatus {
     Scanning,
     #[allow(dead_code)]
     ScanComplete(usize), // Added ScanComplete with title count
-    Ripping { completed: usize, total: usize },
+    Ripping {
+        completed: usize,
+        total: usize,
+    },
     #[allow(dead_code)]
-    RipComplete,                 // Added RipComplete
+    RipComplete, // Added RipComplete
     #[allow(dead_code)]
-    Uploading { progress: f32 }, // Added Uploading with progress
+    Uploading {
+        progress: f32,
+    }, // Added Uploading with progress
     #[allow(dead_code)]
-    UploadComplete,              // Added UploadComplete
+    UploadComplete, // Added UploadComplete
     Completed,
     Error(String),
 }

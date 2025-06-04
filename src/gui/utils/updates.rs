@@ -103,10 +103,10 @@ fn is_newer_version(current: &str, latest: &str) -> bool {
         let current_part = current_parts.get(i).copied().unwrap_or(0);
         let latest_part = latest_parts.get(i).copied().unwrap_or(0);
 
-        if latest_part > current_part {
-            return true;
-        } else if latest_part < current_part {
-            return false;
+        match latest_part.cmp(&current_part) {
+            std::cmp::Ordering::Greater => return true,
+            std::cmp::Ordering::Less => return false,
+            std::cmp::Ordering::Equal => continue,
         }
     }
 

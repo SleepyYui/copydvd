@@ -7,7 +7,11 @@ use crate::gui::theme::{
 };
 use std::sync::{Arc, Mutex};
 
-pub fn render_handbrake_tab(ui: &mut egui::Ui, ui_state: &mut UiState, _config: Arc<Mutex<Config>>) {
+pub fn render_handbrake_tab(
+    ui: &mut egui::Ui,
+    ui_state: &mut UiState,
+    _config: Arc<Mutex<Config>>,
+) {
     ui.heading("HandBrake Management");
     ui.separator();
 
