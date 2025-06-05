@@ -25,8 +25,13 @@ pub enum HandBrakePhase {
 pub type ProgressCallback = Box<dyn Fn(HandBrakePhase, f32) + Send + Sync>;
 
 const HANDBRAKE_VERSION: &str = "1.9.2";
-#[allow(dead_code)]
 const HANDBRAKE_BASE_URL: &str = "https://github.com/HandBrake/HandBrake/releases/download";
+
+// HandBrake GitHub Release Asset Naming Convention:
+// Windows x86_64: HandBrakeCLI-{version}-win-x86_64.zip
+// Windows ARM64:   HandBrakeCLI-{version}-win-aarch64.zip  
+// macOS:           HandBrakeCLI-{version}.dmg
+// Linux:           HandBrakeCLI-{version}-x86_64.flatpak (package manager preferred)
 
 pub struct HandBrakeManager {
     cache_dir: PathBuf,
@@ -318,8 +323,8 @@ impl HandBrakeManager {
             }
         }
 
-        // Look for HandBrake.exe in the archive
-        info!("Looking for HandBrake executable in archive...");
+        // Look for HandBrakeCLI.exe in the archive
+        info!("Looking for HandBrakeCLI executable in archive...");
         for i in 0..archive.len() {
             let mut file = archive
                 .by_index(i)
@@ -332,7 +337,7 @@ impl HandBrakeManager {
             let file_name = file.name();
             info!("Checking file: {}", file_name);
 
-            if file_name.ends_with("HandBrake.exe")
+            if file_name.ends_with("HandBrakeCLI.exe")
                 || file_name.ends_with(&platform_info.binary_name)
             {
                 info!("Found HandBrake executable: {}", file_name);
@@ -580,11 +585,11 @@ impl HandBrakeManager {
         {
             Ok(PlatformInfo {
                 download_url: format!(
-                    "{}/{}/HandBrake-{}-win-x86_64.zip",
+                    "{}/{}/HandBrakeCLI-{}-win-x86_64.zip",
                     HANDBRAKE_BASE_URL, version, version
                 ),
-                binary_name: "HandBrake.exe".to_string(),
-                expected_sha256: None, // Add actual checksums from HandBrake releases if needed
+                binary_name: "HandBrakeCLI.exe".to_string(),
+                expected_sha256: None, // TODO: Add actual checksums from HandBrake releases for security
             })
         }
 
@@ -592,11 +597,11 @@ impl HandBrakeManager {
         {
             Ok(PlatformInfo {
                 download_url: format!(
-                    "{}/{}/HandBrake-{}-win-aarch64.zip",
+                    "{}/{}/HandBrakeCLI-{}-win-aarch64.zip", 
                     HANDBRAKE_BASE_URL, version, version
                 ),
-                binary_name: "HandBrake.exe".to_string(),
-                expected_sha256: None,
+                binary_name: "HandBrakeCLI.exe".to_string(),
+                expected_sha256: None, // TODO: Add actual checksums for ARM64 Windows
             })
         }
 
@@ -604,11 +609,11 @@ impl HandBrakeManager {
         {
             Ok(PlatformInfo {
                 download_url: format!(
-                    "{}/{}/HandBrake-{}.dmg",
+                    "{}/{}/HandBrakeCLI-{}.dmg",
                     HANDBRAKE_BASE_URL, version, version
                 ),
                 binary_name: "HandBrakeCLI".to_string(),
-                expected_sha256: None,
+                expected_sha256: None, // TODO: Add actual checksums for macOS DMG
             })
         }
 
