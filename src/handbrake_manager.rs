@@ -1,4 +1,5 @@
 use crate::error::{AppError, Result};
+#[cfg(target_os = "macos")]
 use crate::handbrake_auto_fix::MacOSAutoFix;
 use anyhow::Context;
 use directories::ProjectDirs;
@@ -24,6 +25,7 @@ pub enum HandBrakePhase {
 pub type ProgressCallback = Box<dyn Fn(HandBrakePhase, f32) + Send + Sync>;
 
 const HANDBRAKE_VERSION: &str = "1.9.2";
+#[allow(dead_code)]
 const HANDBRAKE_BASE_URL: &str = "https://github.com/HandBrake/HandBrake/releases/download";
 
 pub struct HandBrakeManager {
@@ -700,6 +702,7 @@ impl HandBrakeManager {
                     );
 
                     // Attempt automatic fixes using the dedicated module
+                    #[cfg(target_os = "macos")]
                     match MacOSAutoFix::attempt_all_fixes(&binary_path) {
                         Ok(fixes_applied) if fixes_applied => {
                             info!("Automatic macOS security fixes applied successfully, retrying HandBrake...");
@@ -962,7 +965,14 @@ impl HandBrakeManager {
     /// Check if quarantine attribute exists on the binary
     #[cfg(target_os = "macos")]
     fn has_quarantine_attribute(&self, binary_path: &Path) -> bool {
-        MacOSAutoFix::has_quarantine_attribute(binary_path)
+        #[cfg(target_os = "macos")]
+        {
+            MacOSAutoFix::has_quarantine_attribute(binary_path)
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            false
+        }
     }
 }
 
