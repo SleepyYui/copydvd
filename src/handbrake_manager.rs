@@ -3,13 +3,15 @@ use crate::error::{AppError, Result};
 use crate::handbrake_auto_fix::MacOSAutoFix;
 use anyhow::Context;
 use directories::ProjectDirs;
-
+use reqwest;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::{Duration, SystemTime};
 use tracing::{info, warn};
 use zip::ZipArchive;
 
@@ -25,13 +27,31 @@ pub enum HandBrakePhase {
 pub type ProgressCallback = Box<dyn Fn(HandBrakePhase, f32) + Send + Sync>;
 
 const HANDBRAKE_VERSION: &str = "1.9.2";
-const HANDBRAKE_BASE_URL: &str = "https://github.com/HandBrake/HandBrake/releases/download";
+const GITHUB_API_BASE: &str = "https://api.github.com/repos/HandBrake/HandBrake";
+const CACHE_DURATION: Duration = Duration::from_secs(3600); // 1 hour cache
 
-// HandBrake GitHub Release Asset Naming Convention:
-// Windows x86_64: HandBrakeCLI-{version}-win-x86_64.zip
-// Windows ARM64:   HandBrakeCLI-{version}-win-aarch64.zip  
-// macOS:           HandBrakeCLI-{version}.dmg
-// Linux:           HandBrakeCLI-{version}-x86_64.flatpak (package manager preferred)
+// GitHub API response structures
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct GitHubRelease {
+    tag_name: String,
+    name: String,
+    assets: Vec<GitHubAsset>,
+    published_at: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct GitHubAsset {
+    name: String,
+    browser_download_url: String,
+    size: u64,
+}
+
+// Cached release info
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct CachedReleaseInfo {
+    release: GitHubRelease,
+    cached_at: SystemTime,
+}
 
 pub struct HandBrakeManager {
     cache_dir: PathBuf,
@@ -44,6 +64,11 @@ struct PlatformInfo {
     download_url: String,
     binary_name: String,
     expected_sha256: Option<String>,
+}
+
+struct PlatformPattern {
+    name_pattern: String,
+    binary_name: String,
 }
 
 impl HandBrakeManager {
@@ -578,18 +603,137 @@ impl HandBrakeManager {
         Ok(())
     }
 
-    fn get_platform_info() -> Result<PlatformInfo> {
+    /// Get platform-specific HandBrake download info from GitHub API
+    async fn get_platform_info() -> Result<PlatformInfo> {
+        // Try to get release info from GitHub API
+        match Self::get_release_from_github().await {
+            Ok(release) => {
+                info!("Successfully fetched release info from GitHub API");
+                Self::extract_platform_info_from_release(&release)
+            }
+            Err(e) => {
+                warn!("Failed to fetch from GitHub API: {}, falling back to hardcoded URLs", e);
+                Self::get_fallback_platform_info()
+            }
+        }
+    }
+
+    /// Fetch release information from GitHub API with caching
+    async fn get_release_from_github() -> Result<GitHubRelease> {
+        let cache_path = Self::get_cache_dir()?.join("github_release_cache.json");
+        
+        // Try to load from cache first
+        if let Ok(cached_data) = std::fs::read_to_string(&cache_path) {
+            if let Ok(cached_info) = serde_json::from_str::<CachedReleaseInfo>(&cached_data) {
+                if cached_info.cached_at.elapsed().unwrap_or(CACHE_DURATION) < CACHE_DURATION {
+                    info!("Using cached GitHub release info");
+                    return Ok(cached_info.release);
+                }
+            }
+        }
+
+        info!("Fetching latest HandBrake release from GitHub API...");
+        
+        // Fetch from GitHub API
+        let client = reqwest::Client::builder()
+            .user_agent("CopyDVD/0.1.11")
+            .timeout(Duration::from_secs(30))
+            .build()
+            .context("Failed to create HTTP client")?;
+
+        let url = format!("{}/releases/tags/{}", GITHUB_API_BASE, HANDBRAKE_VERSION);
+        let response = client
+            .get(&url)
+            .send()
+            .await
+            .context("Failed to fetch release from GitHub")?;
+
+        if !response.status().is_success() {
+            return Err(AppError::HandbrakeError(format!(
+                "GitHub API returned status: {}", 
+                response.status()
+            )));
+        }
+
+        let release: GitHubRelease = response
+            .json()
+            .await
+            .context("Failed to parse GitHub API response")?;
+
+        // Cache the result
+        let cached_info = CachedReleaseInfo {
+            release: release.clone(),
+            cached_at: SystemTime::now(),
+        };
+
+        if let Ok(cache_json) = serde_json::to_string_pretty(&cached_info) {
+            let _ = std::fs::write(&cache_path, cache_json);
+        }
+
+        info!("Successfully fetched and cached release info for version {}", release.tag_name);
+        Ok(release)
+    }
+
+    /// Extract platform-specific download info from GitHub release
+    fn extract_platform_info_from_release(release: &GitHubRelease) -> Result<PlatformInfo> {
+        let target_patterns = Self::get_platform_patterns();
+        
+        for pattern in &target_patterns {
+            if let Some(asset) = release.assets.iter().find(|asset| {
+                asset.name.contains(&pattern.name_pattern)
+            }) {
+                info!("Found matching asset: {} ({})", asset.name, asset.size);
+                return Ok(PlatformInfo {
+                    download_url: asset.browser_download_url.clone(),
+                    binary_name: pattern.binary_name.clone(),
+                    expected_sha256: None, // TODO: GitHub doesn't provide SHA256 in API
+                });
+            }
+        }
+
+        warn!("No matching asset found for current platform in release {}", release.tag_name);
+        Self::get_fallback_platform_info()
+    }
+
+    /// Get platform-specific asset patterns
+    fn get_platform_patterns() -> Vec<PlatformPattern> {
+        let mut patterns = Vec::new();
+
+        #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+        patterns.push(PlatformPattern {
+            name_pattern: "HandBrakeCLI-".to_string() + HANDBRAKE_VERSION + "-win-x86_64.zip",
+            binary_name: "HandBrakeCLI.exe".to_string(),
+        });
+
+        #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+        patterns.push(PlatformPattern {
+            name_pattern: "HandBrakeCLI-".to_string() + HANDBRAKE_VERSION + "-win-aarch64.zip",
+            binary_name: "HandBrakeCLI.exe".to_string(),
+        });
+
+        #[cfg(target_os = "macos")]
+        patterns.push(PlatformPattern {
+            name_pattern: "HandBrakeCLI-".to_string() + HANDBRAKE_VERSION + ".dmg",
+            binary_name: "HandBrakeCLI".to_string(),
+        });
+
+        patterns
+    }
+
+    /// Fallback to hardcoded URLs if GitHub API fails
+    fn get_fallback_platform_info() -> Result<PlatformInfo> {
         let version = HANDBRAKE_VERSION;
+        let base_url = "https://github.com/HandBrake/HandBrake/releases/download";
 
         #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
         {
             Ok(PlatformInfo {
                 download_url: format!(
                     "{}/{}/HandBrakeCLI-{}-win-x86_64.zip",
-                    HANDBRAKE_BASE_URL, version, version
+                    base_url, version, version
                 ),
                 binary_name: "HandBrakeCLI.exe".to_string(),
-                expected_sha256: None, // TODO: Add actual checksums from HandBrake releases for security
+                expected_sha256: None,
             })
         }
 
@@ -598,10 +742,10 @@ impl HandBrakeManager {
             Ok(PlatformInfo {
                 download_url: format!(
                     "{}/{}/HandBrakeCLI-{}-win-aarch64.zip", 
-                    HANDBRAKE_BASE_URL, version, version
+                    base_url, version, version
                 ),
                 binary_name: "HandBrakeCLI.exe".to_string(),
-                expected_sha256: None, // TODO: Add actual checksums for ARM64 Windows
+                expected_sha256: None,
             })
         }
 
@@ -610,35 +754,29 @@ impl HandBrakeManager {
             Ok(PlatformInfo {
                 download_url: format!(
                     "{}/{}/HandBrakeCLI-{}.dmg",
-                    HANDBRAKE_BASE_URL, version, version
+                    base_url, version, version
                 ),
                 binary_name: "HandBrakeCLI".to_string(),
-                expected_sha256: None, // TODO: Add actual checksums for macOS DMG
+                expected_sha256: None,
             })
         }
 
         #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
         {
-            // For Linux, we'll recommend package manager installation
             Err(AppError::HandbrakeError(
                 "Automatic download not available for Linux. Please install HandBrake using your package manager:\n\
                  Ubuntu/Debian: sudo apt install handbrake-cli\n\
-                 Fedora: sudo dnf install handbrake-cli\n\
-                 Arch: sudo pacman -S handbrake-cli".to_string()
+                 Fedora/RHEL: sudo dnf install HandBrake-cli\n\
+                 Arch: sudo pacman -S handbrake-cli".to_string(),
             ))
         }
 
-        #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-        {
-            Err(AppError::HandbrakeError(
-                "Automatic download not available for Linux ARM64. Please install HandBrake using your package manager:\n\
-                 Ubuntu/Debian: sudo apt install handbrake-cli\n\
-                 Fedora: sudo dnf install handbrake-cli\n\
-                 Arch: sudo pacman -S handbrake-cli".to_string()
-            ))
-        }
-
-        #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+        #[cfg(not(any(
+            all(target_os = "windows", target_arch = "x86_64"),
+            all(target_os = "windows", target_arch = "aarch64"),
+            target_os = "macos",
+            all(target_os = "linux", target_arch = "x86_64")
+        )))]
         {
             Err(AppError::HandbrakeError(
                 "Unsupported platform for automatic HandBrake download".to_string(),
