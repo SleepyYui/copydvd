@@ -4,10 +4,12 @@ use std::process::Command;
 use tracing::{info, warn};
 
 /// Automatic macOS security fixes for HandBrake
+#[allow(dead_code)]
 pub struct MacOSAutoFix;
 
 impl MacOSAutoFix {
     /// Attempt all automatic fixes for macOS HandBrake security issues
+    #[allow(dead_code)]
     pub fn attempt_all_fixes(binary_path: &Path) -> Result<bool> {
         info!("Attempting automatic macOS security fixes for HandBrake...");
 
@@ -35,6 +37,7 @@ impl MacOSAutoFix {
     }
 
     /// Remove quarantine attributes from the binary
+    #[allow(dead_code)]
     fn remove_quarantine_attributes(binary_path: &Path) -> Result<bool> {
         let quarantine_attrs = [
             "com.apple.quarantine",
@@ -66,13 +69,15 @@ impl MacOSAutoFix {
     }
 
     /// Set executable permissions on the binary
+    #[allow(dead_code)]
     fn set_executable_permissions(binary_path: &Path) -> Result<bool> {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
 
-            let metadata = std::fs::metadata(binary_path)
-                .map_err(|e| AppError::HandbrakeError(format!("Failed to get metadata: {}", e)))?;
+            let metadata = std::fs::metadata(binary_path).map_err(|e| {
+                crate::error::AppError::HandbrakeError(format!("Failed to get metadata: {}", e))
+            })?;
 
             let mut permissions = metadata.permissions();
             let current_mode = permissions.mode();
@@ -99,6 +104,7 @@ impl MacOSAutoFix {
     }
 
     /// Open Security & Privacy preferences
+    #[allow(dead_code)]
     fn open_security_preferences() -> Result<bool> {
         let methods = [
             (
@@ -120,6 +126,7 @@ impl MacOSAutoFix {
     }
 
     /// Check if the binary has quarantine attributes
+    #[allow(dead_code)]
     pub fn has_quarantine_attribute(binary_path: &Path) -> bool {
         Command::new("xattr")
             .args(["-l"])

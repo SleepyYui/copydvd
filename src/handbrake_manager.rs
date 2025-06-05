@@ -57,6 +57,7 @@ pub struct HandBrakeManager {
     cache_dir: PathBuf,
     binary_path: Option<PathBuf>,
     progress_callback: Option<ProgressCallback>,
+    version: Option<String>,
 }
 
 #[derive(Debug)]
@@ -74,12 +75,11 @@ struct PlatformPattern {
 impl HandBrakeManager {
     pub fn new() -> Result<Self> {
         let cache_dir = Self::get_cache_dir()?;
-        fs::create_dir_all(&cache_dir)?;
-
         Ok(Self {
             cache_dir,
             binary_path: None,
             progress_callback: None,
+            version: None,
         })
     }
 
@@ -168,15 +168,15 @@ impl HandBrakeManager {
                     return Ok(system_path);
                 }
             }
-            
+
             // Also check common installation paths directly
             let common_paths = vec![
                 "/opt/homebrew/bin/HandBrakeCLI",
-                "/usr/local/bin/HandBrakeCLI", 
+                "/usr/local/bin/HandBrakeCLI",
                 "/usr/bin/HandBrakeCLI",
                 "/usr/local/bin/handbrake",
             ];
-            
+
             for path in common_paths {
                 let path_buf = PathBuf::from(path);
                 if path_buf.exists() {
@@ -185,7 +185,7 @@ impl HandBrakeManager {
                     return Ok(path_buf);
                 }
             }
-            
+
             warn!("Package manager installation succeeded but HandBrake not found in PATH or common locations");
         }
 
@@ -213,10 +213,9 @@ impl HandBrakeManager {
 
     fn get_cached_binary_path(&self) -> Result<PathBuf> {
         let patterns = HandBrakeManager::get_platform_patterns();
-        let pattern = patterns
-            .into_iter()
-            .next()
-            .ok_or_else(|| AppError::HandbrakeError("No platform patterns available".to_string()))?;
+        let pattern = patterns.into_iter().next().ok_or_else(|| {
+            AppError::HandbrakeError("No platform patterns available".to_string())
+        })?;
         Ok(self.cache_dir.join(&pattern.binary_name))
     }
 
@@ -653,7 +652,10 @@ impl HandBrakeManager {
                 Self::extract_platform_info_from_release(&release)
             }
             Err(e) => {
-                warn!("Failed to fetch from GitHub API: {}, falling back to hardcoded URLs", e);
+                warn!(
+                    "Failed to fetch from GitHub API: {}, falling back to hardcoded URLs",
+                    e
+                );
                 Self::get_fallback_platform_info()
             }
         }
@@ -662,7 +664,7 @@ impl HandBrakeManager {
     /// Fetch release information from GitHub API with caching
     async fn get_release_from_github() -> Result<GitHubRelease> {
         let cache_path = Self::get_cache_dir()?.join("github_release_cache.json");
-        
+
         // Try to load from cache first
         if let Ok(cached_data) = std::fs::read_to_string(&cache_path) {
             if let Ok(cached_info) = serde_json::from_str::<CachedReleaseInfo>(&cached_data) {
@@ -674,32 +676,31 @@ impl HandBrakeManager {
         }
 
         info!("Fetching latest HandBrake release from GitHub API...");
-        
+
         // Fetch from GitHub API
         let client = reqwest::Client::builder()
             .user_agent("CopyDVD/0.1.11")
             .timeout(Duration::from_secs(30))
             .build()
-            .map_err(|e| AppError::HandbrakeError(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                AppError::HandbrakeError(format!("Failed to create HTTP client: {}", e))
+            })?;
 
         let url = format!("{}/releases/tags/{}", GITHUB_API_BASE, HANDBRAKE_VERSION);
-        let response = client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| AppError::HandbrakeError(format!("Failed to fetch release from GitHub: {}", e)))?;
+        let response = client.get(&url).send().await.map_err(|e| {
+            AppError::HandbrakeError(format!("Failed to fetch release from GitHub: {}", e))
+        })?;
 
         if !response.status().is_success() {
             return Err(AppError::HandbrakeError(format!(
-                "GitHub API returned status: {}", 
+                "GitHub API returned status: {}",
                 response.status()
             )));
         }
 
-        let release: GitHubRelease = response
-            .json()
-            .await
-            .map_err(|e| AppError::HandbrakeError(format!("Failed to parse GitHub API response: {}", e)))?;
+        let release: GitHubRelease = response.json().await.map_err(|e| {
+            AppError::HandbrakeError(format!("Failed to parse GitHub API response: {}", e))
+        })?;
 
         // Cache the result
         let cached_info = CachedReleaseInfo {
@@ -711,18 +712,23 @@ impl HandBrakeManager {
             let _ = std::fs::write(&cache_path, cache_json);
         }
 
-        info!("Successfully fetched and cached release info for version {}", release.tag_name);
+        info!(
+            "Successfully fetched and cached release info for version {}",
+            release.tag_name
+        );
         Ok(release)
     }
 
     /// Extract platform-specific download info from GitHub release
     fn extract_platform_info_from_release(release: &GitHubRelease) -> Result<PlatformInfo> {
         let target_patterns = Self::get_platform_patterns();
-        
+
         for pattern in &target_patterns {
-            if let Some(asset) = release.assets.iter().find(|asset| {
-                asset.name.contains(&pattern.name_pattern)
-            }) {
+            if let Some(asset) = release
+                .assets
+                .iter()
+                .find(|asset| asset.name.contains(&pattern.name_pattern))
+            {
                 info!("Found matching asset: {} ({})", asset.name, asset.size);
                 return Ok(PlatformInfo {
                     download_url: asset.browser_download_url.clone(),
@@ -732,7 +738,10 @@ impl HandBrakeManager {
             }
         }
 
-        warn!("No matching asset found for current platform in release {}", release.tag_name);
+        warn!(
+            "No matching asset found for current platform in release {}",
+            release.tag_name
+        );
         Self::get_fallback_platform_info()
     }
 
@@ -783,7 +792,7 @@ impl HandBrakeManager {
         {
             Ok(PlatformInfo {
                 download_url: format!(
-                    "{}/{}/HandBrakeCLI-{}-win-aarch64.zip", 
+                    "{}/{}/HandBrakeCLI-{}-win-aarch64.zip",
                     base_url, version, version
                 ),
                 binary_name: "HandBrakeCLI.exe".to_string(),
@@ -794,10 +803,7 @@ impl HandBrakeManager {
         #[cfg(target_os = "macos")]
         {
             Ok(PlatformInfo {
-                download_url: format!(
-                    "{}/{}/HandBrakeCLI-{}.dmg",
-                    base_url, version, version
-                ),
+                download_url: format!("{}/{}/HandBrakeCLI-{}.dmg", base_url, version, version),
                 binary_name: "HandBrakeCLI".to_string(),
                 expected_sha256: None,
             })
@@ -989,6 +995,9 @@ impl HandBrakeManager {
             version_info
         );
 
+        // Store the version for later retrieval
+        self.version = Some(version_info.to_string());
+
         Ok(binary_path.to_string_lossy().to_string())
     }
 
@@ -1163,22 +1172,22 @@ impl HandBrakeManager {
     /// Try to install HandBrake using available package managers
     async fn try_package_manager_install(&mut self) -> Result<bool> {
         self.update_progress(HandBrakePhase::Downloading, 0.0);
-        
+
         #[cfg(target_os = "macos")]
         {
             return self.try_macos_package_managers().await;
         }
-        
+
         #[cfg(target_os = "windows")]
         {
             return self.try_windows_package_managers().await;
         }
-        
+
         #[cfg(target_os = "linux")]
         {
             return self.try_linux_package_managers().await;
         }
-        
+
         #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
         {
             info!("Package manager installation not supported on this platform");
@@ -1190,12 +1199,12 @@ impl HandBrakeManager {
     #[cfg(target_os = "macos")]
     async fn try_macos_package_managers(&mut self) -> Result<bool> {
         info!("Checking for macOS package managers...");
-        
+
         // Try Homebrew first
         if which::which("brew").is_ok() {
             info!("Found Homebrew, attempting to install HandBrake...");
             self.update_progress(HandBrakePhase::Installing, 25.0);
-            
+
             match tokio::process::Command::new("brew")
                 .args(["install", "handbrake"])
                 .output()
@@ -1245,12 +1254,12 @@ impl HandBrakeManager {
                 }
             }
         }
-        
+
         // Try MacPorts if Homebrew failed
         if which::which("port").is_ok() {
             info!("Found MacPorts, attempting to install HandBrake...");
             self.update_progress(HandBrakePhase::Installing, 50.0);
-            
+
             match tokio::process::Command::new("sudo")
                 .args(["port", "install", "HandBrake"])
                 .output()
@@ -1274,7 +1283,7 @@ impl HandBrakeManager {
                 }
             }
         }
-        
+
         info!("No suitable macOS package managers found or all installations failed");
         Ok(false)
     }
@@ -1283,16 +1292,16 @@ impl HandBrakeManager {
     #[cfg(target_os = "windows")]
     async fn try_windows_package_managers(&mut self) -> Result<bool> {
         info!("Checking for Windows package managers...");
-        
+
         // Check for Chocolatey
         if which::which("choco").is_ok() {
             info!("Found Chocolatey, attempting to install HandBrake...");
-            
+
             // Note: In a real GUI application, this would show a dialog
             // For now, we'll proceed automatically as requested
             info!("Installing HandBrake via Chocolatey (automatic installation)...");
             self.update_progress(HandBrakePhase::Installing, 25.0);
-            
+
             match tokio::process::Command::new("choco")
                 .args(["install", "handbrake", "-y"])
                 .output()
@@ -1306,18 +1315,22 @@ impl HandBrakeManager {
                 Ok(output) => {
                     let stdout = String::from_utf8_lossy(&output.stdout);
                     let stderr = String::from_utf8_lossy(&output.stderr);
-                    if stdout.contains("already installed") || stderr.contains("already installed") {
+                    if stdout.contains("already installed") || stderr.contains("already installed")
+                    {
                         info!("HandBrake already installed via Chocolatey");
                         return Ok(true);
                     }
-                    warn!("Chocolatey installation failed - stdout: {}, stderr: {}", stdout, stderr);
+                    warn!(
+                        "Chocolatey installation failed - stdout: {}, stderr: {}",
+                        stdout, stderr
+                    );
                 }
                 Err(e) => {
                     warn!("Failed to execute choco install: {}", e);
                 }
             }
         }
-        
+
         info!("No suitable Windows package managers found or installation failed");
         Ok(false)
     }
@@ -1326,12 +1339,12 @@ impl HandBrakeManager {
     #[cfg(target_os = "linux")]
     async fn try_linux_package_managers(&mut self) -> Result<bool> {
         info!("Checking for Linux package managers...");
-        
+
         let distro = self.detect_linux_distro().await;
         info!("Detected Linux distribution: {}", distro);
-        
+
         self.update_progress(HandBrakePhase::Installing, 25.0);
-        
+
         // Try different package managers based on availability and distro
         let package_managers = vec![
             // Ubuntu/Debian
@@ -1347,18 +1360,21 @@ impl HandBrakeManager {
             // Alpine
             ("apk", vec!["add", "handbrake"]),
         ];
-        
+
         for (pm, args) in package_managers {
             if which::which(pm).is_ok() {
-                info!("Found {} package manager, attempting to install HandBrake...", pm);
-                
+                info!(
+                    "Found {} package manager, attempting to install HandBrake...",
+                    pm
+                );
+
                 let result = if pm == "apt" {
                     // Special handling for apt to run update first
                     let update_result = tokio::process::Command::new("sudo")
                         .args(["apt", "update"])
                         .output()
                         .await;
-                    
+
                     if update_result.is_ok() {
                         tokio::process::Command::new("sudo")
                             .args(["apt", "install", "-y", "handbrake-cli"])
@@ -1375,7 +1391,7 @@ impl HandBrakeManager {
                         .output()
                         .await
                 };
-                
+
                 match result {
                     Ok(output) if output.status.success() => {
                         info!("HandBrake successfully installed via {}", pm);
@@ -1385,12 +1401,17 @@ impl HandBrakeManager {
                     Ok(output) => {
                         let stdout = String::from_utf8_lossy(&output.stdout);
                         let stderr = String::from_utf8_lossy(&output.stderr);
-                        if stdout.contains("already installed") || stderr.contains("already installed") 
-                           || stdout.contains("already at the latest version") {
+                        if stdout.contains("already installed")
+                            || stderr.contains("already installed")
+                            || stdout.contains("already at the latest version")
+                        {
                             info!("HandBrake already installed via {}", pm);
                             return Ok(true);
                         }
-                        warn!("{} installation failed - stdout: {}, stderr: {}", pm, stdout, stderr);
+                        warn!(
+                            "{} installation failed - stdout: {}, stderr: {}",
+                            pm, stdout, stderr
+                        );
                     }
                     Err(e) => {
                         warn!("Failed to execute {} install: {}", pm, e);
@@ -1398,7 +1419,7 @@ impl HandBrakeManager {
                 }
             }
         }
-        
+
         info!("No suitable Linux package managers found or all installations failed");
         Ok(false)
     }
@@ -1414,7 +1435,7 @@ impl HandBrakeManager {
                 }
             }
         }
-        
+
         // Fallback: check for specific files
         let distro_files = vec![
             ("/etc/debian_version", "debian"),
@@ -1423,14 +1444,19 @@ impl HandBrakeManager {
             ("/etc/SuSE-release", "opensuse"),
             ("/etc/alpine-release", "alpine"),
         ];
-        
+
         for (file, distro) in distro_files {
             if tokio::fs::metadata(file).await.is_ok() {
                 return distro.to_string();
             }
         }
-        
+
         "unknown".to_string()
+    }
+
+    /// Get the currently detected HandBrake version
+    pub fn get_version(&self) -> Option<&str> {
+        self.version.as_deref()
     }
 }
 
@@ -1450,6 +1476,7 @@ impl Default for HandBrakeManager {
             cache_dir: std::env::temp_dir(),
             binary_path: None,
             progress_callback: None,
+            version: None,
         })
     }
 }

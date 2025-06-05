@@ -2,7 +2,7 @@
 // pub mod buttons;
 // pub mod inputs;
 // pub mod status;
-// pub mod toast;
+pub mod toast;
 
 // Using basic egui components instead of complex styled ones
 // This supports the TeamSpeak-style simple UI approach
@@ -19,6 +19,4 @@
 //     card_container, error_display, info_display, progress_indicator, section, status_bar, status_dot,
 //     styled_progress_bar, success_display, task_status, warning_display, TaskStatus,
 // };
-// pub use toast::{
-//     render_toast_notifications, add_success_toast, add_error_toast, add_warning_toast, add_info_toast,
-// };
+// pub use toast::render_toast_notifications; // Used directly in gui/mod.rs

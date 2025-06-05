@@ -1,5 +1,6 @@
 use crate::config::Config;
-use crate::gui::notifications::{notify_error, notify_info, notify_success};
+use crate::gui::notifications::{notify_error, notify_success};
+use crate::gui::state::ui_state::{send_handbrake_update, HandBrakeUpdate};
 use crate::gui::state::{HandBrakeOperationStatus, UiState};
 use crate::gui::theme::{
     full_width_button, grouped_section, status_indicator, styled_panel, BasicTheme, Layout,
@@ -64,6 +65,12 @@ fn render_handbrake_status(ui: &mut egui::Ui, ui_state: &mut UiState) {
             match &ui_state.handbrake_status {
                 HandBrakeOperationStatus::Idle => {
                     status_indicator(ui, "Ready", StatusType::Info);
+
+                    // Display version if available
+                    if let Some(version) = &ui_state.handbrake_version {
+                        ui.add_space(Layout::SPACING_SMALL);
+                        ui.label(format!("Version: {}", version));
+                    }
                 }
                 HandBrakeOperationStatus::CheckingStatus => {
                     status_indicator(ui, "Checking status...", StatusType::Warning);
@@ -216,19 +223,49 @@ fn render_cache_management(ui: &mut egui::Ui, ui_state: &mut UiState) {
 
 fn check_handbrake_availability(ui_state: &mut UiState) {
     ui_state.handbrake_status = HandBrakeOperationStatus::CheckingStatus;
-    notify_info("Checking HandBrake availability...");
+    ui_state.handbrake_version = None;
 
     // Spawn async task to verify HandBrake
     let manager = ui_state.handbrake_manager.clone();
     tokio::spawn(async move {
+        // Send checking status update
+        send_handbrake_update(HandBrakeUpdate {
+            status: HandBrakeOperationStatus::CheckingStatus,
+            version: None,
+        });
+
         let result = {
             let mut guard = manager.lock().await;
             guard.verify_handbrake().await
         };
 
         match result {
-            Ok(_) => notify_success("HandBrake is available and ready"),
-            Err(e) => notify_error(&format!("HandBrake check failed: {}", e)),
+            Ok(_) => {
+                // Get version information
+                let version = {
+                    let guard = manager.lock().await;
+                    guard.get_version().map(|v| v.to_string())
+                };
+
+                // Send success update
+                send_handbrake_update(HandBrakeUpdate {
+                    status: HandBrakeOperationStatus::Idle,
+                    version: version.clone(),
+                });
+
+                // Status notification now handled by in-app toast system
+            }
+            Err(e) => {
+                let error_msg = format!("HandBrake check failed: {}", e);
+
+                // Send error update
+                send_handbrake_update(HandBrakeUpdate {
+                    status: HandBrakeOperationStatus::Error(error_msg.clone()),
+                    version: None,
+                });
+
+                // Error notification now handled by in-app toast system
+            }
         }
     });
 }
@@ -240,16 +277,21 @@ fn download_handbrake(ui_state: &mut UiState) {
         HandBrakeOperationStatus::CheckingStatus
     ) {
         ui_state.handbrake_status = HandBrakeOperationStatus::Idle;
-        notify_info("Reset status and retrying...");
         return;
     }
 
     ui_state.handbrake_status = HandBrakeOperationStatus::CheckingStatus;
-    notify_info("Checking HandBrake status...");
+    ui_state.handbrake_version = None;
 
     // Spawn async task to download HandBrake
     let manager = ui_state.handbrake_manager.clone();
     tokio::spawn(async move {
+        // Send checking status update
+        send_handbrake_update(HandBrakeUpdate {
+            status: HandBrakeOperationStatus::CheckingStatus,
+            version: None,
+        });
+
         // First check if HandBrake already exists
         let exists = {
             let guard = manager.lock().await;
@@ -257,7 +299,6 @@ fn download_handbrake(ui_state: &mut UiState) {
         };
 
         if exists {
-            notify_info("HandBrake already exists, verifying installation...");
             let result = {
                 let mut guard = manager.lock().await;
                 guard.verify_handbrake().await
@@ -265,31 +306,101 @@ fn download_handbrake(ui_state: &mut UiState) {
 
             match result {
                 Ok(_) => {
-                    notify_success("HandBrake is already installed and verified");
+                    // Get version information after verification
+                    let version = {
+                        let guard = manager.lock().await;
+                        guard.get_version().map(|v| v.to_string())
+                    };
+
+                    // Send success update
+                    send_handbrake_update(HandBrakeUpdate {
+                        status: HandBrakeOperationStatus::Idle,
+                        version: version.clone(),
+                    });
+
+                    // Success notification now handled by in-app toast system
                 }
                 Err(_e) => {
-                    notify_info("Existing HandBrake has issues, re-downloading...");
                     // If verification fails, proceed with download
+                    send_handbrake_update(HandBrakeUpdate {
+                        status: HandBrakeOperationStatus::Downloading { progress: 0.0 },
+                        version: None,
+                    });
+
                     let download_result = {
                         let mut guard = manager.lock().await;
                         guard.get_handbrake_path().await
                     };
                     match download_result {
-                        Ok(_) => notify_success("HandBrake downloaded and installed successfully"),
-                        Err(e) => notify_error(&format!("HandBrake download failed: {}", e)),
+                        Ok(_) => {
+                            // Get version information after download
+                            let version = {
+                                let guard = manager.lock().await;
+                                guard.get_version().map(|v| v.to_string())
+                            };
+
+                            // Send success update
+                            send_handbrake_update(HandBrakeUpdate {
+                                status: HandBrakeOperationStatus::Idle,
+                                version: version.clone(),
+                            });
+
+                            // Success notification now handled by in-app toast system
+                        }
+                        Err(e) => {
+                            let error_msg = format!("HandBrake download failed: {}", e);
+
+                            send_handbrake_update(HandBrakeUpdate {
+                                status: HandBrakeOperationStatus::Error(error_msg.clone()),
+                                version: None,
+                            });
+
+                            // Error notification now handled by in-app toast system
+                        }
                     }
                 }
             }
         } else {
-            notify_info("HandBrake not found, starting download...");
+            send_handbrake_update(HandBrakeUpdate {
+                status: HandBrakeOperationStatus::Downloading { progress: 0.0 },
+                version: None,
+            });
+
             let result = {
                 let mut guard = manager.lock().await;
                 guard.get_handbrake_path().await
             };
 
             match result {
-                Ok(_) => notify_success("HandBrake downloaded and installed successfully"),
-                Err(e) => notify_error(&format!("HandBrake download failed: {}", e)),
+                Ok(_) => {
+                    // Get version information after download
+                    let version = {
+                        let guard = manager.lock().await;
+                        guard.get_version().map(|v| v.to_string())
+                    };
+
+                    // Send success update
+                    send_handbrake_update(HandBrakeUpdate {
+                        status: HandBrakeOperationStatus::Idle,
+                        version: version.clone(),
+                    });
+
+                    if let Some(v) = version {
+                        notify_success(&format!("HandBrake {} ready", v));
+                    } else {
+                        notify_success("HandBrake ready");
+                    }
+                }
+                Err(e) => {
+                    let error_msg = format!("HandBrake download failed: {}", e);
+
+                    send_handbrake_update(HandBrakeUpdate {
+                        status: HandBrakeOperationStatus::Error(error_msg.clone()),
+                        version: None,
+                    });
+
+                    // Error notification now handled by in-app toast system
+                }
             }
         }
     });
@@ -297,19 +408,49 @@ fn download_handbrake(ui_state: &mut UiState) {
 
 fn verify_handbrake(ui_state: &mut UiState) {
     ui_state.handbrake_status = HandBrakeOperationStatus::VerifyingInstallation;
-    notify_info("Verifying HandBrake installation...");
+    ui_state.handbrake_version = None;
 
     // Spawn async task to verify HandBrake
     let manager = ui_state.handbrake_manager.clone();
     tokio::spawn(async move {
+        // Send verifying status update
+        send_handbrake_update(HandBrakeUpdate {
+            status: HandBrakeOperationStatus::VerifyingInstallation,
+            version: None,
+        });
+
         let result = {
             let mut guard = manager.lock().await;
             guard.verify_handbrake().await
         };
 
         match result {
-            Ok(path) => notify_success(&format!("HandBrake verified at: {}", path)),
-            Err(e) => notify_error(&format!("HandBrake verification failed: {}", e)),
+            Ok(_path) => {
+                // Get version information
+                let version = {
+                    let guard = manager.lock().await;
+                    guard.get_version().map(|v| v.to_string())
+                };
+
+                // Send success update
+                send_handbrake_update(HandBrakeUpdate {
+                    status: HandBrakeOperationStatus::Idle,
+                    version: version.clone(),
+                });
+
+                // Success notification now handled by in-app toast system
+            }
+            Err(e) => {
+                let error_msg = format!("HandBrake verification failed: {}", e);
+
+                // Send error update
+                send_handbrake_update(HandBrakeUpdate {
+                    status: HandBrakeOperationStatus::Error(error_msg.clone()),
+                    version: None,
+                });
+
+                // Error notification now handled by in-app toast system
+            }
         }
     });
 }

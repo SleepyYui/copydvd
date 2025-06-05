@@ -1,14 +1,19 @@
 use crate::app::state::AppState;
 use crate::config::Config;
-use crate::gui::state::{Tab, UiState, UpdateStatus};
+use crate::gui::components::toast::render_toast_notifications;
+use crate::gui::state::ui_state::init_handbrake_update_sender;
+use crate::gui::state::ui_state::{ToastNotification, ToastType};
+use crate::gui::state::{HandBrakeOperationStatus, Tab, UiState, UpdateStatus};
 use crate::gui::tabs::*;
 use crate::gui::theme::apply_theme;
 use crate::gui::utils::updates::{auto_check_for_updates, UpdateCheckResult};
 use crate::handbrake_manager::HandBrakeManager;
+use std::time::Duration;
 
 use egui::{Align, Layout, RichText};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc::unbounded_channel;
 
 pub mod components;
 pub mod notifications;
@@ -68,6 +73,15 @@ impl CopyDvdApp {
         let (_update_sender, update_receiver) = mpsc::channel();
         let (handbrake_sender, handbrake_receiver) = mpsc::channel();
 
+        // Set up HandBrake update channel
+        let (hb_update_sender, hb_update_receiver) = unbounded_channel();
+
+        // Initialize the global sender for HandBrake updates
+        init_handbrake_update_sender(hb_update_sender);
+
+        let mut ui_state = UiState::new();
+        ui_state.handbrake_update_receiver = Some(hb_update_receiver);
+
         // Start HandBrake verification immediately
         tokio::spawn(async move {
             let _ = handbrake_sender.send(HandBrakeStatus::Verifying);
@@ -95,7 +109,7 @@ impl CopyDvdApp {
 
         Self {
             app_state: Arc::new(Mutex::new(AppState::new(Config::default()))),
-            ui_state: UiState::new(),
+            ui_state,
             config: Arc::new(Mutex::new(Config::default())),
             first_frame: true,
             update_receiver,
@@ -106,6 +120,7 @@ impl CopyDvdApp {
 
     fn update_status(&mut self, ctx: &egui::Context) {
         self.check_for_handbrake_status();
+        self.check_for_handbrake_updates();
 
         if let Ok(_state) = self.app_state.try_lock() {
             // Note: AppState doesn't have an error field, so we'll skip this check
@@ -151,16 +166,85 @@ impl CopyDvdApp {
                         version,
                         url: download_url,
                     };
-                    self.ui_state.show_update_dialog = true;
                 }
                 UpdateCheckResult::UpToDate => {
                     self.ui_state.update_status = UpdateStatus::UpToDate;
                 }
-                UpdateCheckResult::Error(error) => {
-                    self.ui_state.update_status = UpdateStatus::Error(error);
+                UpdateCheckResult::Error(e) => {
+                    self.ui_state.update_status = UpdateStatus::Error(e);
                 }
             }
             self.ui_state.checking_updates = false;
+        }
+    }
+
+    fn check_for_handbrake_updates(&mut self) {
+        // Process HandBrake updates
+        if let Some(receiver) = &mut self.ui_state.handbrake_update_receiver {
+            while let Ok(update) = receiver.try_recv() {
+                // Add toast notification based on status with shorter duration
+                match &update.status {
+                    HandBrakeOperationStatus::Idle => {
+                        if let Some(ref version) = update.version {
+                            self.ui_state.toast_notifications.push(
+                                ToastNotification::with_duration(
+                                    format!("HandBrake {} ready", version),
+                                    ToastType::Success,
+                                    Duration::from_secs(3),
+                                ),
+                            );
+                        } else {
+                            self.ui_state.toast_notifications.push(
+                                ToastNotification::with_duration(
+                                    "HandBrake ready".to_string(),
+                                    ToastType::Success,
+                                    Duration::from_secs(3),
+                                ),
+                            );
+                        }
+                    }
+                    HandBrakeOperationStatus::CheckingStatus => {
+                        self.ui_state
+                            .toast_notifications
+                            .push(ToastNotification::with_duration(
+                                "Checking HandBrake status...".to_string(),
+                                ToastType::Info,
+                                Duration::from_secs(2),
+                            ));
+                    }
+                    HandBrakeOperationStatus::VerifyingInstallation => {
+                        self.ui_state
+                            .toast_notifications
+                            .push(ToastNotification::with_duration(
+                                "Verifying HandBrake installation...".to_string(),
+                                ToastType::Info,
+                                Duration::from_secs(2),
+                            ));
+                    }
+                    HandBrakeOperationStatus::Downloading { .. } => {
+                        self.ui_state
+                            .toast_notifications
+                            .push(ToastNotification::with_duration(
+                                "Downloading HandBrake...".to_string(),
+                                ToastType::Info,
+                                Duration::from_secs(2),
+                            ));
+                    }
+                    HandBrakeOperationStatus::Error(err) => {
+                        self.ui_state
+                            .toast_notifications
+                            .push(ToastNotification::with_duration(
+                                format!("HandBrake error: {}", err),
+                                ToastType::Error,
+                                Duration::from_secs(4),
+                            ));
+                    }
+                    _ => {}
+                }
+
+                self.ui_state.handbrake_status = update.status;
+                self.ui_state.handbrake_version = update.version;
+            }
         }
     }
 
@@ -416,6 +500,9 @@ impl eframe::App for CopyDvdApp {
         if ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::S)) {
             self.save_all_configs();
         }
+
+        // Render toast notifications
+        render_toast_notifications(ctx, &mut self.ui_state.toast_notifications);
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {

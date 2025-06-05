@@ -2,7 +2,7 @@ use crate::dvd::types::Title;
 use crate::handbrake_manager::HandBrakeManager;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 
 /// UI-specific state that doesn't belong in the core app state
 #[derive(Debug)]
@@ -47,6 +47,12 @@ pub struct UiState {
     /// HandBrake operation status
     pub handbrake_status: HandBrakeOperationStatus,
 
+    /// HandBrake version information
+    pub handbrake_version: Option<String>,
+
+    /// Channel for receiving HandBrake status updates
+    pub handbrake_update_receiver: Option<mpsc::UnboundedReceiver<HandBrakeUpdate>>,
+
     /// Download progress for async operations
     #[allow(dead_code)]
     pub download_progress: Option<Arc<std::sync::Mutex<f32>>>,
@@ -58,6 +64,12 @@ pub struct UiState {
     /// Toast notifications for better user feedback
     #[allow(dead_code)]
     pub toast_notifications: Vec<ToastNotification>,
+}
+
+#[derive(Debug, Clone)]
+pub struct HandBrakeUpdate {
+    pub status: HandBrakeOperationStatus,
+    pub version: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -117,6 +129,23 @@ pub enum Tab {
     Server,
     HandBrake,
     About,
+}
+
+// Global sender for HandBrake updates - not ideal but necessary for async communication
+static mut HANDBRAKE_UPDATE_SENDER: Option<mpsc::UnboundedSender<HandBrakeUpdate>> = None;
+
+pub fn init_handbrake_update_sender(sender: mpsc::UnboundedSender<HandBrakeUpdate>) {
+    unsafe {
+        HANDBRAKE_UPDATE_SENDER = Some(sender);
+    }
+}
+
+pub fn send_handbrake_update(update: HandBrakeUpdate) {
+    unsafe {
+        if let Some(ref sender) = HANDBRAKE_UPDATE_SENDER {
+            let _ = sender.send(update);
+        }
+    }
 }
 
 impl Tab {
@@ -251,6 +280,8 @@ impl Default for UiState {
             checking_updates: false,
             handbrake_manager,
             handbrake_status: HandBrakeOperationStatus::Idle,
+            handbrake_version: None,
+            handbrake_update_receiver: None,
             download_progress: None,
             handbrake_phase_progress: None,
             toast_notifications: Vec::new(),

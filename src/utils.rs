@@ -88,10 +88,7 @@ pub fn log_system_info() {
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
-        if let Ok(output) = Command::new("wmic")
-            .args(&["os", "get", "Caption"])
-            .output()
-        {
+        if let Ok(output) = Command::new("wmic").args(["os", "get", "Caption"]).output() {
             let output = String::from_utf8_lossy(&output.stdout);
             if let Some(line) = output.lines().nth(1) {
                 info!("  Windows version: {}", line.trim());

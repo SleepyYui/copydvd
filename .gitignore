@@ -148,3 +148,4 @@ cython_debug/
 .idea/sonarlint/**
 /outs/**
 PROGRESS.md
+*.local.md
