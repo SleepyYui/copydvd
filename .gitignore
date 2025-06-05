@@ -4,7 +4,7 @@ Cargo.lock
 
 # macOS artifacts
 .DS_Store
-CopyDVD.app/
+Copy DVD.app/
 
 # IDE files
 .idea/
