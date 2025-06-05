@@ -3,7 +3,7 @@ use crate::error::{AppError, Result};
 use crate::handbrake_auto_fix::MacOSAutoFix;
 use anyhow::Context;
 use directories::ProjectDirs;
-use reqwest;
+
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -126,7 +126,7 @@ impl HandBrakeManager {
             vec!["HandBrake", "handbrake"]
         };
 
-        for name in possible_names {
+        for name in &possible_names {
             if let Ok(system_path) = which::which(name) {
                 info!(
                     "Found HandBrake in system PATH: {} -> {}",
@@ -152,8 +152,27 @@ impl HandBrakeManager {
         }
         info!("No cached HandBrake found");
 
-        // Download and cache HandBrake
-        info!("HandBrake not found anywhere. Starting download process...");
+        // Try package managers before downloading from GitHub
+        info!("Attempting to install HandBrake via package managers...");
+        if self.try_package_manager_install().await? {
+            info!("HandBrake successfully installed via package manager");
+            // Check system PATH again after installation
+            for name in &possible_names {
+                if let Ok(system_path) = which::which(name) {
+                    info!(
+                        "Found newly installed HandBrake in system PATH: {} -> {}",
+                        name,
+                        system_path.display()
+                    );
+                    self.binary_path = Some(system_path.clone());
+                    return Ok(system_path);
+                }
+            }
+            warn!("Package manager installation succeeded but HandBrake not found in PATH");
+        }
+
+        // Download and cache HandBrake as last resort
+        info!("Package managers unavailable or failed. Starting download process...");
         self.download_handbrake().await?;
 
         let binary_path = self.get_cached_binary_path()?;
@@ -175,12 +194,16 @@ impl HandBrakeManager {
     }
 
     fn get_cached_binary_path(&self) -> Result<PathBuf> {
-        let platform_info = Self::get_platform_info()?;
-        Ok(self.cache_dir.join(&platform_info.binary_name))
+        let patterns = HandBrakeManager::get_platform_patterns();
+        let pattern = patterns
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::HandbrakeError("No platform patterns available".to_string()))?;
+        Ok(self.cache_dir.join(&pattern.binary_name))
     }
 
     async fn download_handbrake(&self) -> Result<()> {
-        let platform_info = Self::get_platform_info()?;
+        let platform_info = Self::get_platform_info().await?;
 
         info!("=== Starting HandBrake Download ===");
         info!(
@@ -639,14 +662,14 @@ impl HandBrakeManager {
             .user_agent("CopyDVD/0.1.11")
             .timeout(Duration::from_secs(30))
             .build()
-            .context("Failed to create HTTP client")?;
+            .map_err(|e| AppError::HandbrakeError(format!("Failed to create HTTP client: {}", e)))?;
 
         let url = format!("{}/releases/tags/{}", GITHUB_API_BASE, HANDBRAKE_VERSION);
         let response = client
             .get(&url)
             .send()
             .await
-            .context("Failed to fetch release from GitHub")?;
+            .map_err(|e| AppError::HandbrakeError(format!("Failed to fetch release from GitHub: {}", e)))?;
 
         if !response.status().is_success() {
             return Err(AppError::HandbrakeError(format!(
@@ -658,7 +681,7 @@ impl HandBrakeManager {
         let release: GitHubRelease = response
             .json()
             .await
-            .context("Failed to parse GitHub API response")?;
+            .map_err(|e| AppError::HandbrakeError(format!("Failed to parse GitHub API response: {}", e)))?;
 
         // Cache the result
         let cached_info = CachedReleaseInfo {
@@ -696,6 +719,7 @@ impl HandBrakeManager {
     }
 
     /// Get platform-specific asset patterns
+    #[allow(clippy::vec_init_then_push)]
     fn get_platform_patterns() -> Vec<PlatformPattern> {
         let mut patterns = Vec::new();
 
@@ -1116,6 +1140,251 @@ impl HandBrakeManager {
         {
             false
         }
+    }
+
+    /// Try to install HandBrake using available package managers
+    async fn try_package_manager_install(&mut self) -> Result<bool> {
+        self.update_progress(HandBrakePhase::Downloading, 0.0);
+        
+        #[cfg(target_os = "macos")]
+        {
+            return self.try_macos_package_managers().await;
+        }
+        
+        #[cfg(target_os = "windows")]
+        {
+            return self.try_windows_package_managers().await;
+        }
+        
+        #[cfg(target_os = "linux")]
+        {
+            return self.try_linux_package_managers().await;
+        }
+        
+        #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+        {
+            info!("Package manager installation not supported on this platform");
+            Ok(false)
+        }
+    }
+
+    /// Try macOS package managers (Homebrew and MacPorts)
+    #[cfg(target_os = "macos")]
+    async fn try_macos_package_managers(&mut self) -> Result<bool> {
+        info!("Checking for macOS package managers...");
+        
+        // Try Homebrew first
+        if which::which("brew").is_ok() {
+            info!("Found Homebrew, attempting to install HandBrake...");
+            self.update_progress(HandBrakePhase::Installing, 25.0);
+            
+            match tokio::process::Command::new("brew")
+                .args(["install", "handbrake"])
+                .output()
+                .await
+            {
+                Ok(output) if output.status.success() => {
+                    info!("HandBrake successfully installed via Homebrew");
+                    self.update_progress(HandBrakePhase::Installing, 100.0);
+                    return Ok(true);
+                }
+                Ok(output) => {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    if stderr.contains("already installed") {
+                        info!("HandBrake already installed via Homebrew");
+                        return Ok(true);
+                    }
+                    warn!("Homebrew installation failed: {}", stderr);
+                }
+                Err(e) => {
+                    warn!("Failed to execute brew install: {}", e);
+                }
+            }
+        }
+        
+        // Try MacPorts if Homebrew failed
+        if which::which("port").is_ok() {
+            info!("Found MacPorts, attempting to install HandBrake...");
+            self.update_progress(HandBrakePhase::Installing, 50.0);
+            
+            match tokio::process::Command::new("sudo")
+                .args(["port", "install", "HandBrake"])
+                .output()
+                .await
+            {
+                Ok(output) if output.status.success() => {
+                    info!("HandBrake successfully installed via MacPorts");
+                    self.update_progress(HandBrakePhase::Installing, 100.0);
+                    return Ok(true);
+                }
+                Ok(output) => {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    if stderr.contains("already installed") || stderr.contains("already active") {
+                        info!("HandBrake already installed via MacPorts");
+                        return Ok(true);
+                    }
+                    warn!("MacPorts installation failed: {}", stderr);
+                }
+                Err(e) => {
+                    warn!("Failed to execute port install: {}", e);
+                }
+            }
+        }
+        
+        info!("No suitable macOS package managers found or all installations failed");
+        Ok(false)
+    }
+
+    /// Try Windows package managers (Chocolatey)
+    #[cfg(target_os = "windows")]
+    async fn try_windows_package_managers(&mut self) -> Result<bool> {
+        info!("Checking for Windows package managers...");
+        
+        // Check for Chocolatey
+        if which::which("choco").is_ok() {
+            info!("Found Chocolatey, attempting to install HandBrake...");
+            
+            // Note: In a real GUI application, this would show a dialog
+            // For now, we'll proceed automatically as requested
+            info!("Installing HandBrake via Chocolatey (automatic installation)...");
+            self.update_progress(HandBrakePhase::Installing, 25.0);
+            
+            match tokio::process::Command::new("choco")
+                .args(["install", "handbrake", "-y"])
+                .output()
+                .await
+            {
+                Ok(output) if output.status.success() => {
+                    info!("HandBrake successfully installed via Chocolatey");
+                    self.update_progress(HandBrakePhase::Installing, 100.0);
+                    return Ok(true);
+                }
+                Ok(output) => {
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    if stdout.contains("already installed") || stderr.contains("already installed") {
+                        info!("HandBrake already installed via Chocolatey");
+                        return Ok(true);
+                    }
+                    warn!("Chocolatey installation failed - stdout: {}, stderr: {}", stdout, stderr);
+                }
+                Err(e) => {
+                    warn!("Failed to execute choco install: {}", e);
+                }
+            }
+        }
+        
+        info!("No suitable Windows package managers found or installation failed");
+        Ok(false)
+    }
+
+    /// Try Linux package managers (auto-detect distribution)
+    #[cfg(target_os = "linux")]
+    async fn try_linux_package_managers(&mut self) -> Result<bool> {
+        info!("Checking for Linux package managers...");
+        
+        let distro = self.detect_linux_distro().await;
+        info!("Detected Linux distribution: {}", distro);
+        
+        self.update_progress(HandBrakePhase::Installing, 25.0);
+        
+        // Try different package managers based on availability and distro
+        let package_managers = vec![
+            // Ubuntu/Debian
+            ("apt", vec!["update", "&&", "apt", "install", "-y", "handbrake-cli"]),
+            // Fedora/RHEL 8+
+            ("dnf", vec!["install", "-y", "handbrake-cli"]),
+            // RHEL/CentOS 7
+            ("yum", vec!["install", "-y", "handbrake-cli"]),
+            // Arch Linux
+            ("pacman", vec!["-S", "--noconfirm", "handbrake"]),
+            // OpenSUSE
+            ("zypper", vec!["install", "-y", "handbrake"]),
+            // Alpine
+            ("apk", vec!["add", "handbrake"]),
+        ];
+        
+        for (pm, args) in package_managers {
+            if which::which(pm).is_ok() {
+                info!("Found {} package manager, attempting to install HandBrake...", pm);
+                
+                let result = if pm == "apt" {
+                    // Special handling for apt to run update first
+                    let update_result = tokio::process::Command::new("sudo")
+                        .args(["apt", "update"])
+                        .output()
+                        .await;
+                    
+                    if update_result.is_ok() {
+                        tokio::process::Command::new("sudo")
+                            .args(["apt", "install", "-y", "handbrake-cli"])
+                            .output()
+                            .await
+                    } else {
+                        update_result
+                    }
+                } else {
+                    tokio::process::Command::new("sudo")
+                        .args([pm].iter().chain(args.iter()).map(|s| *s).collect::<Vec<&str>>())
+                        .output()
+                        .await
+                };
+                
+                match result {
+                    Ok(output) if output.status.success() => {
+                        info!("HandBrake successfully installed via {}", pm);
+                        self.update_progress(HandBrakePhase::Installing, 100.0);
+                        return Ok(true);
+                    }
+                    Ok(output) => {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        if stdout.contains("already installed") || stderr.contains("already installed") 
+                           || stdout.contains("already at the latest version") {
+                            info!("HandBrake already installed via {}", pm);
+                            return Ok(true);
+                        }
+                        warn!("{} installation failed - stdout: {}, stderr: {}", pm, stdout, stderr);
+                    }
+                    Err(e) => {
+                        warn!("Failed to execute {} install: {}", pm, e);
+                    }
+                }
+            }
+        }
+        
+        info!("No suitable Linux package managers found or all installations failed");
+        Ok(false)
+    }
+
+    /// Detect Linux distribution
+    #[cfg(target_os = "linux")]
+    async fn detect_linux_distro(&self) -> String {
+        // Try to read /etc/os-release
+        if let Ok(content) = tokio::fs::read_to_string("/etc/os-release").await {
+            for line in content.lines() {
+                if line.starts_with("ID=") {
+                    return line.replace("ID=", "").trim_matches('"').to_string();
+                }
+            }
+        }
+        
+        // Fallback: check for specific files
+        let distro_files = vec![
+            ("/etc/debian_version", "debian"),
+            ("/etc/redhat-release", "rhel"),
+            ("/etc/arch-release", "arch"),
+            ("/etc/SuSE-release", "opensuse"),
+            ("/etc/alpine-release", "alpine"),
+        ];
+        
+        for (file, distro) in distro_files {
+            if tokio::fs::metadata(file).await.is_ok() {
+                return distro.to_string();
+            }
+        }
+        
+        "unknown".to_string()
     }
 }
 
