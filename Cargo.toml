@@ -43,6 +43,9 @@ sha2 = "0.10"
 # OS notifications
 notify-rust = "4.8"
 
+# Icon processing  
+image = "0.24"
+
 # Additional GUI dependencies
 webbrowser = "1.0"
 open = "5.0"
@@ -75,6 +78,9 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+[build-dependencies]
+icns = "0.3"
 
 [[bin]]
 name = "copydvd"

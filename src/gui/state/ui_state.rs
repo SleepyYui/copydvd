@@ -1,8 +1,8 @@
 use crate::dvd::types::Title;
 use crate::handbrake_manager::HandBrakeManager;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, Mutex};
+use std::time::Instant;
+use tokio::sync::Mutex;
 
 /// UI-specific state that doesn't belong in the core app state
 #[derive(Debug)]
@@ -50,8 +50,12 @@ pub struct UiState {
     /// HandBrake version information
     pub handbrake_version: Option<String>,
 
-    /// Channel for receiving HandBrake status updates
-    pub handbrake_update_receiver: Option<mpsc::UnboundedReceiver<HandBrakeUpdate>>,
+    /// HandBrake verification message visibility timeout
+    pub handbrake_verification_visible_until: Option<Instant>,
+
+    /// Simple channel for UI updates from async HandBrake operations
+    pub handbrake_ui_receiver: Option<std::sync::mpsc::Receiver<(HandBrakeOperationStatus, Option<String>)>>,
+
 
     /// Download progress for async operations
     #[allow(dead_code)]
@@ -61,63 +65,25 @@ pub struct UiState {
     #[allow(dead_code)]
     pub handbrake_phase_progress: Option<Arc<std::sync::Mutex<(HandBrakeOperationStatus, f32)>>>,
 
-    /// Toast notifications for better user feedback
-    #[allow(dead_code)]
-    pub toast_notifications: Vec<ToastNotification>,
 }
 
-#[derive(Debug, Clone)]
-pub struct HandBrakeUpdate {
-    pub status: HandBrakeOperationStatus,
-    pub version: Option<String>,
+
+
+// Global sender for simple HandBrake UI updates
+static mut HANDBRAKE_UI_SENDER: Option<std::sync::mpsc::Sender<(HandBrakeOperationStatus, Option<String>)>> = None;
+
+pub fn init_handbrake_ui_sender(sender: std::sync::mpsc::Sender<(HandBrakeOperationStatus, Option<String>)>) {
+    unsafe {
+        HANDBRAKE_UI_SENDER = Some(sender);
+    }
 }
 
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub struct ToastNotification {
-    pub message: String,
-    pub toast_type: ToastType,
-    pub created_at: Instant,
-    pub duration: Duration,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub enum ToastType {
-    Success,
-    Error,
-    Warning,
-    Info,
-}
-
-#[allow(dead_code)]
-impl ToastNotification {
-    pub fn new(message: String, toast_type: ToastType) -> Self {
-        Self {
-            message,
-            toast_type,
-            created_at: Instant::now(),
-            duration: Duration::from_secs(5), // Default 5 seconds
+#[allow(static_mut_refs)]
+pub fn send_handbrake_ui_update(status: HandBrakeOperationStatus, version: Option<String>) {
+    unsafe {
+        if let Some(ref sender) = HANDBRAKE_UI_SENDER {
+            let _ = sender.send((status, version));
         }
-    }
-
-    pub fn with_duration(message: String, toast_type: ToastType, duration: Duration) -> Self {
-        Self {
-            message,
-            toast_type,
-            created_at: Instant::now(),
-            duration,
-        }
-    }
-
-    pub fn is_expired(&self) -> bool {
-        self.created_at.elapsed() > self.duration
-    }
-
-    pub fn remaining_ratio(&self) -> f32 {
-        let elapsed = self.created_at.elapsed().as_secs_f32();
-        let total = self.duration.as_secs_f32();
-        (total - elapsed) / total
     }
 }
 
@@ -131,22 +97,6 @@ pub enum Tab {
     About,
 }
 
-// Global sender for HandBrake updates - not ideal but necessary for async communication
-static mut HANDBRAKE_UPDATE_SENDER: Option<mpsc::UnboundedSender<HandBrakeUpdate>> = None;
-
-pub fn init_handbrake_update_sender(sender: mpsc::UnboundedSender<HandBrakeUpdate>) {
-    unsafe {
-        HANDBRAKE_UPDATE_SENDER = Some(sender);
-    }
-}
-
-pub fn send_handbrake_update(update: HandBrakeUpdate) {
-    unsafe {
-        if let Some(ref sender) = HANDBRAKE_UPDATE_SENDER {
-            let _ = sender.send(update);
-        }
-    }
-}
 
 impl Tab {
     pub fn name(&self) -> &'static str {
@@ -281,10 +231,10 @@ impl Default for UiState {
             handbrake_manager,
             handbrake_status: HandBrakeOperationStatus::Idle,
             handbrake_version: None,
-            handbrake_update_receiver: None,
+            handbrake_verification_visible_until: None,
+            handbrake_ui_receiver: None,
             download_progress: None,
             handbrake_phase_progress: None,
-            toast_notifications: Vec::new(),
         }
     }
 }
@@ -467,38 +417,6 @@ impl UiState {
         self.error_message.clear();
     }
 
-    /// Add a toast notification
-    #[allow(dead_code)]
-    pub fn add_toast(&mut self, message: String, toast_type: ToastType) {
-        self.toast_notifications
-            .push(ToastNotification::new(message, toast_type));
-    }
-
-    /// Add a toast notification with custom duration
-    #[allow(dead_code)]
-    pub fn add_toast_with_duration(
-        &mut self,
-        message: String,
-        toast_type: ToastType,
-        duration: Duration,
-    ) {
-        self.toast_notifications
-            .push(ToastNotification::with_duration(
-                message, toast_type, duration,
-            ));
-    }
-
-    /// Clean up expired toast notifications
-    #[allow(dead_code)]
-    pub fn cleanup_expired_toasts(&mut self) {
-        self.toast_notifications.retain(|toast| !toast.is_expired());
-    }
-
-    /// Clear all toast notifications
-    #[allow(dead_code)]
-    pub fn clear_toasts(&mut self) {
-        self.toast_notifications.clear();
-    }
 
     /// Set status message
     #[allow(dead_code)]

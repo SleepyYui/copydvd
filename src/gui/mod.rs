@@ -1,19 +1,15 @@
 use crate::app::state::AppState;
 use crate::config::Config;
-use crate::gui::components::toast::render_toast_notifications;
-use crate::gui::state::ui_state::init_handbrake_update_sender;
-use crate::gui::state::ui_state::{ToastNotification, ToastType};
 use crate::gui::state::{HandBrakeOperationStatus, Tab, UiState, UpdateStatus};
 use crate::gui::tabs::*;
 use crate::gui::theme::apply_theme;
 use crate::gui::utils::updates::{auto_check_for_updates, UpdateCheckResult};
 use crate::handbrake_manager::HandBrakeManager;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use egui::{Align, Layout, RichText};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
-use tokio::sync::mpsc::unbounded_channel;
 
 pub mod components;
 pub mod notifications;
@@ -51,10 +47,54 @@ pub fn run() -> eframe::Result<()> {
 }
 
 fn load_icon() -> egui::IconData {
+    // Try to load the icon from resources
+    if let Ok(icon_data) = std::fs::read("resources/icons/icon-64.png") {
+        if let Ok(image) = image::load_from_memory(&icon_data) {
+            let rgba_image = image.to_rgba8();
+            let (width, height) = rgba_image.dimensions();
+            return egui::IconData {
+                rgba: rgba_image.into_raw(),
+                width: width as u32,
+                height: height as u32,
+            };
+        }
+    }
+    
+    // Fallback: create a simple icon programmatically
+    let size = 64;
+    let mut rgba = vec![0u8; size * size * 4];
+    
+    // Create a simple DVD icon pattern
+    for y in 0..size {
+        for x in 0..size {
+            let idx = (y * size + x) * 4;
+            let center_x = size as f32 / 2.0;
+            let center_y = size as f32 / 2.0;
+            let distance = ((x as f32 - center_x).powi(2) + (y as f32 - center_y).powi(2)).sqrt();
+            
+            if distance < 28.0 && distance > 8.0 {
+                // DVD disc area - silver color
+                rgba[idx] = 200;     // R
+                rgba[idx + 1] = 200; // G  
+                rgba[idx + 2] = 200; // B
+                rgba[idx + 3] = 255; // A
+            } else if distance <= 8.0 {
+                // Center hole - dark
+                rgba[idx] = 50;      // R
+                rgba[idx + 1] = 50;  // G
+                rgba[idx + 2] = 50;  // B
+                rgba[idx + 3] = 255; // A
+            } else {
+                // Transparent background
+                rgba[idx + 3] = 0;
+            }
+        }
+    }
+    
     egui::IconData {
-        rgba: vec![0; 32 * 32 * 4],
-        width: 32,
-        height: 32,
+        rgba,
+        width: size as u32,
+        height: size as u32,
     }
 }
 
@@ -73,14 +113,12 @@ impl CopyDvdApp {
         let (_update_sender, update_receiver) = mpsc::channel();
         let (handbrake_sender, handbrake_receiver) = mpsc::channel();
 
-        // Set up HandBrake update channel
-        let (hb_update_sender, hb_update_receiver) = unbounded_channel();
-
-        // Initialize the global sender for HandBrake updates
-        init_handbrake_update_sender(hb_update_sender);
+        // Set up HandBrake UI update channel
+        let (handbrake_ui_sender, handbrake_ui_receiver) = mpsc::channel();
+        crate::gui::state::ui_state::init_handbrake_ui_sender(handbrake_ui_sender);
 
         let mut ui_state = UiState::new();
-        ui_state.handbrake_update_receiver = Some(hb_update_receiver);
+        ui_state.handbrake_ui_receiver = Some(handbrake_ui_receiver);
 
         // Start HandBrake verification immediately
         tokio::spawn(async move {
@@ -120,7 +158,7 @@ impl CopyDvdApp {
 
     fn update_status(&mut self, ctx: &egui::Context) {
         self.check_for_handbrake_status();
-        self.check_for_handbrake_updates();
+        self.check_for_handbrake_ui_updates();
 
         if let Ok(_state) = self.app_state.try_lock() {
             // Note: AppState doesn't have an error field, so we'll skip this check
@@ -149,6 +187,12 @@ impl CopyDvdApp {
     fn check_for_handbrake_status(&mut self) {
         // Non-blocking check for HandBrake verification results
         if let Ok(status) = self.handbrake_receiver.try_recv() {
+            // Set visibility timeout when HandBrake is verified
+            if matches!(status, HandBrakeStatus::Verified(_)) {
+                self.ui_state.handbrake_verification_visible_until = Some(
+                    Instant::now() + Duration::from_secs(5)
+                );
+            }
             self.handbrake_status = Some(status);
         }
     }
@@ -178,75 +222,23 @@ impl CopyDvdApp {
         }
     }
 
-    fn check_for_handbrake_updates(&mut self) {
-        // Process HandBrake updates
-        if let Some(receiver) = &mut self.ui_state.handbrake_update_receiver {
-            while let Ok(update) = receiver.try_recv() {
-                // Add toast notification based on status with shorter duration
-                match &update.status {
-                    HandBrakeOperationStatus::Idle => {
-                        if let Some(ref version) = update.version {
-                            self.ui_state.toast_notifications.push(
-                                ToastNotification::with_duration(
-                                    format!("HandBrake {} ready", version),
-                                    ToastType::Success,
-                                    Duration::from_secs(3),
-                                ),
-                            );
-                        } else {
-                            self.ui_state.toast_notifications.push(
-                                ToastNotification::with_duration(
-                                    "HandBrake ready".to_string(),
-                                    ToastType::Success,
-                                    Duration::from_secs(3),
-                                ),
-                            );
-                        }
-                    }
-                    HandBrakeOperationStatus::CheckingStatus => {
-                        self.ui_state
-                            .toast_notifications
-                            .push(ToastNotification::with_duration(
-                                "Checking HandBrake status...".to_string(),
-                                ToastType::Info,
-                                Duration::from_secs(2),
-                            ));
-                    }
-                    HandBrakeOperationStatus::VerifyingInstallation => {
-                        self.ui_state
-                            .toast_notifications
-                            .push(ToastNotification::with_duration(
-                                "Verifying HandBrake installation...".to_string(),
-                                ToastType::Info,
-                                Duration::from_secs(2),
-                            ));
-                    }
-                    HandBrakeOperationStatus::Downloading { .. } => {
-                        self.ui_state
-                            .toast_notifications
-                            .push(ToastNotification::with_duration(
-                                "Downloading HandBrake...".to_string(),
-                                ToastType::Info,
-                                Duration::from_secs(2),
-                            ));
-                    }
-                    HandBrakeOperationStatus::Error(err) => {
-                        self.ui_state
-                            .toast_notifications
-                            .push(ToastNotification::with_duration(
-                                format!("HandBrake error: {}", err),
-                                ToastType::Error,
-                                Duration::from_secs(4),
-                            ));
-                    }
-                    _ => {}
-                }
+    fn check_for_handbrake_ui_updates(&mut self) {
+        // Process HandBrake UI updates
+        if let Some(receiver) = &self.ui_state.handbrake_ui_receiver {
+            while let Ok((status, version)) = receiver.try_recv() {
+                self.ui_state.handbrake_status = status;
+                self.ui_state.handbrake_version = version;
 
-                self.ui_state.handbrake_status = update.status;
-                self.ui_state.handbrake_version = update.version;
+                // Set visibility timeout when HandBrake becomes ready
+                if matches!(self.ui_state.handbrake_status, HandBrakeOperationStatus::Idle) && self.ui_state.handbrake_version.is_some() {
+                    self.ui_state.handbrake_verification_visible_until = Some(
+                        Instant::now() + Duration::from_secs(5)
+                    );
+                }
             }
         }
     }
+
 
     fn save_all_configs(&mut self) {
         self.update_config_from_ui();
@@ -353,19 +345,34 @@ impl eframe::App for CopyDvdApp {
                 .auto_shrink([false, false])
                 .id_source("main_content_scroll")
                 .show(ui, |ui| {
-                    // HandBrake status display at top
-                    if let Some(ref handbrake_status) = self.handbrake_status {
-                        match handbrake_status {
-                            HandBrakeStatus::Verifying => {
-                                ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "🔍 Verifying HandBrake installation...");
-                                ui.separator();
-                            }
-                            HandBrakeStatus::Verified(path) => {
-                                ui.colored_label(egui::Color32::from_rgb(0, 150, 0), format!("✅ HandBrake verified: {}", path));
-                                ui.separator();
-                            }
-                            HandBrakeStatus::Error(error) => {
-                                let error_clone = error.clone();
+                    // HandBrake status display at top (only show on HandBrake tab or within timeout)
+                    let should_show_handbrake_status = match (&self.handbrake_status, self.ui_state.active_tab) {
+                        // Always show on HandBrake tab
+                        (Some(_), Tab::HandBrake) => true,
+                        // Show verification message on other tabs only within timeout
+                        (Some(HandBrakeStatus::Verified(_)), _) => {
+                            self.ui_state.handbrake_verification_visible_until
+                                .is_some_and(|until| Instant::now() < until)
+                        }
+                        // Always show verifying and error states on all tabs
+                        (Some(HandBrakeStatus::Verifying), _) => true,
+                        (Some(HandBrakeStatus::Error(_)), _) => true,
+                        _ => false,
+                    };
+
+                    if should_show_handbrake_status {
+                        if let Some(handbrake_status) = &self.handbrake_status {
+                            match handbrake_status {
+                                HandBrakeStatus::Verifying => {
+                                    ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "🔍 Verifying HandBrake installation...");
+                                    ui.separator();
+                                }
+                                HandBrakeStatus::Verified(path) => {
+                                    ui.colored_label(egui::Color32::from_rgb(0, 150, 0), format!("✅ HandBrake verified: {}", path));
+                                    ui.separator();
+                                }
+                                HandBrakeStatus::Error(error) => {
+                                    let error_clone = error.clone();
 
                                 // Check if automatic fixes were attempted
                                 let auto_fixes_attempted = error_clone.contains("Automatic security fixes were attempted");
@@ -460,7 +467,8 @@ impl eframe::App for CopyDvdApp {
                                     ui.label("3. Look for 'Allow Anyway' button in Security settings");
                                 }
 
-                                ui.separator();
+                                    ui.separator();
+                                }
                             }
                         }
                     }
@@ -501,8 +509,6 @@ impl eframe::App for CopyDvdApp {
             self.save_all_configs();
         }
 
-        // Render toast notifications
-        render_toast_notifications(ctx, &mut self.ui_state.toast_notifications);
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {

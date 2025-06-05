@@ -2,7 +2,7 @@
 // pub mod buttons;
 // pub mod inputs;
 // pub mod status;
-pub mod toast;
+// pub mod toast; // Removed - using OS-level notifications instead
 
 // Using basic egui components instead of complex styled ones
 // This supports the TeamSpeak-style simple UI approach

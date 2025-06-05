@@ -143,22 +143,22 @@ fn render_single_toast(ui: &mut egui::Ui, toast: &ToastNotification, rect: Rect)
     });
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "Utility function for toast notifications")]
 pub fn add_success_toast(toasts: &mut Vec<ToastNotification>, message: String) {
     toasts.push(ToastNotification::new(message, ToastType::Success));
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "Utility function for toast notifications")]
 pub fn add_error_toast(toasts: &mut Vec<ToastNotification>, message: String) {
     toasts.push(ToastNotification::new(message, ToastType::Error));
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "Utility function for toast notifications")]
 pub fn add_warning_toast(toasts: &mut Vec<ToastNotification>, message: String) {
     toasts.push(ToastNotification::new(message, ToastType::Warning));
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "Utility function for toast notifications")]
 pub fn add_info_toast(toasts: &mut Vec<ToastNotification>, message: String) {
     toasts.push(ToastNotification::new(message, ToastType::Info));
 }

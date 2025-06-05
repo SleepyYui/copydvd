@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDisplayName</key>
+    <string>Copy DVD</string>
+    <key>CFBundleExecutable</key>
+    <string>copydvd</string>
+    <key>CFBundleIconFile</key>
+    <string>icon</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.sleepyyui.copydvd</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>Copy DVD</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.11</string>
+    <key>CFBundleVersion</key>
+    <string>0.1.11</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>© 2024 SleepyYui. All rights reserved.</string>
+    <key>NSRequiresAquaSystemAppearance</key>
+    <false/>
+    <key>NSUserNotificationAlertStyle</key>
+    <string>alert</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Copy DVD needs to send notifications about DVD copying progress.</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.15</string>
+</dict>
+</plist>

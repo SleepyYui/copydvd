@@ -4,36 +4,72 @@ pub struct OSNotifications;
 
 impl OSNotifications {
     pub fn success(title: &str, message: &str) {
-        let _ = Notification::new()
+        tracing::info!("Attempting to show success notification: {} - {}", title, message);
+        match Notification::new()
             .summary(title)
             .body(message)
             .timeout(Timeout::Milliseconds(5000))
-            .show();
+            .show()
+        {
+            Ok(handle) => {
+                tracing::info!("Success notification sent successfully: {:?}", handle);
+            }
+            Err(e) => {
+                tracing::error!("Failed to show success notification: {}", e);
+            }
+        }
     }
 
     pub fn error(title: &str, message: &str) {
-        let _ = Notification::new()
+        tracing::info!("Attempting to show error notification: {} - {}", title, message);
+        match Notification::new()
             .summary(title)
             .body(message)
             .timeout(Timeout::Milliseconds(8000))
-            .show();
+            .show()
+        {
+            Ok(handle) => {
+                tracing::info!("Error notification sent successfully: {:?}", handle);
+            }
+            Err(e) => {
+                tracing::error!("Failed to show error notification: {}", e);
+            }
+        }
     }
 
     #[allow(dead_code)]
     pub fn warning(title: &str, message: &str) {
-        let _ = Notification::new()
+        tracing::info!("Attempting to show warning notification: {} - {}", title, message);
+        match Notification::new()
             .summary(title)
             .body(message)
             .timeout(Timeout::Milliseconds(6000))
-            .show();
+            .show()
+        {
+            Ok(handle) => {
+                tracing::info!("Warning notification sent successfully: {:?}", handle);
+            }
+            Err(e) => {
+                tracing::error!("Failed to show warning notification: {}", e);
+            }
+        }
     }
 
     pub fn info(title: &str, message: &str) {
-        let _ = Notification::new()
+        tracing::info!("Attempting to show info notification: {} - {}", title, message);
+        match Notification::new()
             .summary(title)
             .body(message)
             .timeout(Timeout::Milliseconds(4000))
-            .show();
+            .show()
+        {
+            Ok(handle) => {
+                tracing::info!("Info notification sent successfully: {:?}", handle);
+            }
+            Err(e) => {
+                tracing::error!("Failed to show info notification: {}", e);
+            }
+        }
     }
 }
 

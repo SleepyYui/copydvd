@@ -55,7 +55,7 @@ pub async fn run() -> Result<()> {
 }
 
 /// Run the application with specified CLI arguments (for direct invocation)
-#[allow(dead_code)]
+#[allow(dead_code, reason = "Future API for programmatic CLI execution")]
 pub async fn run_with_args(args: cli::Args) -> Result<()> {
     // Load configuration
     let config = Config::load()?;
@@ -78,7 +78,7 @@ async fn run_cli(app_state: Arc<Mutex<AppState>>, args: cli::Args) -> Result<()>
 
     // Determine DVD path, either from args or auto-detect
     let dvd_path = match args.input {
-        Some(ref path) => path.clone(),
+        Some(path) => path.clone(),
         None => {
             info!("No DVD path specified, attempting to auto-detect");
             match auto_detect_dvd() {
@@ -288,6 +288,8 @@ async fn run_cli(app_state: Arc<Mutex<AppState>>, args: cli::Args) -> Result<()>
         } else if state_guard_complete.status == AppStatus::Idle && task_count == 0 {
             // No tasks were run
             state_guard_complete.status = AppStatus::Completed;
+        } else {
+            // Status is already appropriate (e.g., Error state)
         }
     }
 

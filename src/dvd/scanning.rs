@@ -63,7 +63,7 @@ impl Dvd {
 
         // Fallback: try to find JSON block in text output if direct parsing failed
         // HandBrakeCLI sometimes prints text before the JSON block.
-        let re_json = Regex::new(r"JSON Title Set:(?s)(.*)").unwrap();
+        let re_json = Regex::new("JSON Title Set:(?s)(.*)").unwrap();
         if let Some(caps) = re_json.captures(&stdout) {
             if let Some(json_match) = caps.get(1) {
                 let json_str = json_match.as_str().trim();
