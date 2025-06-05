@@ -168,7 +168,25 @@ impl HandBrakeManager {
                     return Ok(system_path);
                 }
             }
-            warn!("Package manager installation succeeded but HandBrake not found in PATH");
+            
+            // Also check common installation paths directly
+            let common_paths = vec![
+                "/opt/homebrew/bin/HandBrakeCLI",
+                "/usr/local/bin/HandBrakeCLI", 
+                "/usr/bin/HandBrakeCLI",
+                "/usr/local/bin/handbrake",
+            ];
+            
+            for path in common_paths {
+                let path_buf = PathBuf::from(path);
+                if path_buf.exists() {
+                    info!("Found HandBrake at common installation path: {}", path);
+                    self.binary_path = Some(path_buf.clone());
+                    return Ok(path_buf);
+                }
+            }
+            
+            warn!("Package manager installation succeeded but HandBrake not found in PATH or common locations");
         }
 
         // Download and cache HandBrake as last resort
@@ -1185,6 +1203,27 @@ impl HandBrakeManager {
             {
                 Ok(output) if output.status.success() => {
                     info!("HandBrake successfully installed via Homebrew");
+                    // Link the package to make it available in PATH
+                    match tokio::process::Command::new("brew")
+                        .args(["link", "handbrake"])
+                        .output()
+                        .await
+                    {
+                        Ok(link_output) if link_output.status.success() => {
+                            info!("HandBrake successfully linked via Homebrew");
+                        }
+                        Ok(link_output) => {
+                            let link_stderr = String::from_utf8_lossy(&link_output.stderr);
+                            if link_stderr.contains("already linked") {
+                                info!("HandBrake already linked via Homebrew");
+                            } else {
+                                warn!("Homebrew linking failed: {}", link_stderr);
+                            }
+                        }
+                        Err(e) => {
+                            warn!("Failed to execute brew link: {}", e);
+                        }
+                    }
                     self.update_progress(HandBrakePhase::Installing, 100.0);
                     return Ok(true);
                 }
@@ -1192,6 +1231,11 @@ impl HandBrakeManager {
                     let stderr = String::from_utf8_lossy(&output.stderr);
                     if stderr.contains("already installed") {
                         info!("HandBrake already installed via Homebrew");
+                        // Still try to link it in case it's not linked
+                        let _ = tokio::process::Command::new("brew")
+                            .args(["link", "handbrake"])
+                            .output()
+                            .await;
                         return Ok(true);
                     }
                     warn!("Homebrew installation failed: {}", stderr);
@@ -1291,7 +1335,7 @@ impl HandBrakeManager {
         // Try different package managers based on availability and distro
         let package_managers = vec![
             // Ubuntu/Debian
-            ("apt", vec!["update", "&&", "apt", "install", "-y", "handbrake-cli"]),
+            ("apt", vec!["install", "-y", "handbrake-cli"]),
             // Fedora/RHEL 8+
             ("dnf", vec!["install", "-y", "handbrake-cli"]),
             // RHEL/CentOS 7
@@ -1324,8 +1368,10 @@ impl HandBrakeManager {
                         update_result
                     }
                 } else {
+                    let mut cmd_args = vec![pm];
+                    cmd_args.extend(args.iter().map(|s| *s));
                     tokio::process::Command::new("sudo")
-                        .args([pm].iter().chain(args.iter()).map(|s| *s).collect::<Vec<&str>>())
+                        .args(cmd_args)
                         .output()
                         .await
                 };
