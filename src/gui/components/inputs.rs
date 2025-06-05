@@ -167,5 +167,5 @@ pub fn toggle_switch(ui: &mut egui::Ui, value: &mut bool, text: &str) -> egui::R
 
 /// Create a search input field
 pub fn search_input<'a>(text: &'a mut String) -> TextEdit<'a> {
-    text_input(text).hint_text("🔍 Search...")
+    text_input(text).hint_text("Search...")
 }

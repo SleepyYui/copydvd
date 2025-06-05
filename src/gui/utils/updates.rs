@@ -341,7 +341,7 @@ pub fn format_changelog(changelog: &str) -> String {
                 )
             } else if line.starts_with("- ") || line.starts_with("* ") {
                 format!(
-                    "  • {}",
+                    "  - {}",
                     line.trim_start_matches(&['-', '*', ' '][..]).trim()
                 )
             } else {

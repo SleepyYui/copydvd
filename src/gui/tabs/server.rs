@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::gui::icons::svg_icon;
 use crate::gui::notifications::{notify_error, notify_info, notify_success};
 use crate::gui::state::UiState;
 use crate::gui::theme::{
@@ -129,9 +130,12 @@ fn render_connection_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
 
             ui.add_space(Layout::SPACING);
 
-            if full_width_button(ui, "Test Connection").clicked() {
-                test_server_connection(ui_state);
-            }
+            ui.horizontal(|ui| {
+                svg_icon(ui, "search", 16.0, egui::Color32::from_rgb(100, 150, 255));
+                if full_width_button(ui, "Test Connection").clicked() {
+                    test_server_connection(ui_state);
+                }
+            });
         });
     });
 }
@@ -191,21 +195,30 @@ fn render_transfer_options(ui: &mut egui::Ui, ui_state: &mut UiState) {
 fn render_server_actions(ui: &mut egui::Ui, ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
     styled_panel(ui, |ui| {
         grouped_section(ui, "Actions", |ui| {
-            if full_width_button(ui, "Save Server Settings").clicked() {
-                save_server_config(ui_state, config.clone());
-            }
+            ui.horizontal(|ui| {
+                svg_icon(ui, "save", 16.0, egui::Color32::from_rgb(100, 200, 100));
+                if full_width_button(ui, "Save Server Settings").clicked() {
+                    save_server_config(ui_state, config.clone());
+                }
+            });
 
             ui.add_space(Layout::SPACING_SMALL);
 
-            if full_width_button(ui, "Load Server Settings").clicked() {
-                load_server_config(ui_state, config.clone());
-            }
+            ui.horizontal(|ui| {
+                svg_icon(ui, "folder", 16.0, egui::Color32::from_rgb(100, 150, 255));
+                if full_width_button(ui, "Load Server Settings").clicked() {
+                    load_server_config(ui_state, config.clone());
+                }
+            });
 
             ui.add_space(Layout::SPACING);
 
-            if full_width_button(ui, "Clear Settings").clicked() {
-                clear_server_settings(ui_state);
-            }
+            ui.horizontal(|ui| {
+                svg_icon(ui, "cross", 16.0, egui::Color32::from_rgb(255, 100, 100));
+                if full_width_button(ui, "Clear Settings").clicked() {
+                    clear_server_settings(ui_state);
+                }
+            });
         });
     });
 }

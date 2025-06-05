@@ -1,4 +1,5 @@
 use crate::gui::state::ui_state::{ToastNotification, ToastType};
+use crate::gui::icons::svg_icon;
 use egui::{Color32, Context, Pos2, Rect, RichText, Rounding, Stroke, Vec2};
 
 pub fn render_toast_notifications(ctx: &Context, toasts: &mut Vec<ToastNotification>) {
@@ -98,16 +99,15 @@ fn render_single_toast(ui: &mut egui::Ui, toast: &ToastNotification, rect: Rect)
             ui.add_space(12.0);
 
             // Icon
-            let icon = match toast.toast_type {
-                ToastType::Success => "✓",
-                ToastType::Error => "✕",
-                ToastType::Warning => "⚠",
-                ToastType::Info => "ⓘ",
-            };
-
             ui.vertical_centered(|ui| {
                 ui.add_space(8.0);
-                ui.label(RichText::new(icon).size(16.0).color(text_color).strong());
+                let icon_name = match toast.toast_type {
+                    ToastType::Success => "check",
+                    ToastType::Error => "cross",
+                    ToastType::Warning => "warning",
+                    ToastType::Info => "info",
+                };
+                svg_icon(ui, icon_name, 16.0, text_color);
             });
 
             ui.add_space(8.0);

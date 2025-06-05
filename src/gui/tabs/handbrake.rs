@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::gui::icons::svg_icon;
 use crate::gui::notifications::{notify_error, notify_info, notify_success};
 use crate::gui::state::ui_state::send_handbrake_ui_update;
 use crate::gui::state::{HandBrakeOperationStatus, UiState};
@@ -66,9 +67,16 @@ fn render_handbrake_status(ui: &mut egui::Ui, ui_state: &mut UiState) {
             ui.horizontal(|ui| {
                 ui.label("Version:");
                 if let Some(version) = &ui_state.handbrake_version {
-                    ui.label(egui::RichText::new(version).strong().color(egui::Color32::from_rgb(0, 150, 0)));
+                    ui.label(
+                        egui::RichText::new(version)
+                            .strong()
+                            .color(egui::Color32::from_rgb(0, 150, 0)),
+                    );
                 } else {
-                    ui.label(egui::RichText::new("Not detected").color(egui::Color32::from_rgb(150, 150, 150)));
+                    ui.label(
+                        egui::RichText::new("Not detected")
+                            .color(egui::Color32::from_rgb(150, 150, 150)),
+                    );
                 }
             });
             ui.add_space(Layout::SPACING_SMALL);
@@ -127,30 +135,30 @@ fn render_handbrake_status(ui: &mut egui::Ui, ui_state: &mut UiState) {
 
             ui.add_space(Layout::SPACING);
 
-            if full_width_button(ui, "Check Status").clicked() {
-                check_handbrake_availability(ui_state);
-            }
+            ui.horizontal(|ui| {
+                svg_icon(ui, "search", 16.0, egui::Color32::from_rgb(100, 150, 255));
+                if full_width_button(ui, "Check Status").clicked() {
+                    check_handbrake_availability(ui_state);
+                }
+            });
 
             ui.add_space(Layout::SPACING_SMALL);
 
-            if full_width_button(ui, "Download HandBrake").clicked() {
-                download_handbrake(ui_state);
-            }
+            ui.horizontal(|ui| {
+                svg_icon(ui, "download", 16.0, egui::Color32::from_rgb(100, 200, 100));
+                if full_width_button(ui, "Download HandBrake").clicked() {
+                    download_handbrake(ui_state);
+                }
+            });
 
             ui.add_space(Layout::SPACING_SMALL);
 
-            if full_width_button(ui, "Verify Installation").clicked() {
-                verify_handbrake(ui_state);
-            }
-
-            ui.add_space(Layout::SPACING_SMALL);
-
-            if full_width_button(ui, "🧪 Test OS Notification").clicked() {
-                tracing::info!("Testing OS notification...");
-                notify_info("This is a test notification to verify OS notifications are working");
-                tracing::info!("OS notification call completed");
-            }
-
+            ui.horizontal(|ui| {
+                svg_icon(ui, "check", 16.0, egui::Color32::from_rgb(100, 200, 100));
+                if full_width_button(ui, "Verify Installation").clicked() {
+                    verify_handbrake(ui_state);
+                }
+            });
         });
     });
 }
@@ -257,7 +265,7 @@ fn check_handbrake_availability(ui_state: &mut UiState) {
                 // Get version information
                 let version = {
                     let guard = manager.lock().await;
-                    guard.get_version().map(|v| v.to_string())
+                    guard.get_version()
                 };
 
                 // Send UI update for success
@@ -272,10 +280,10 @@ fn check_handbrake_availability(ui_state: &mut UiState) {
             }
             Err(e) => {
                 let error_msg = format!("HandBrake check failed: {}", e);
-                
+
                 // Send UI update for error
                 send_handbrake_ui_update(HandBrakeOperationStatus::Error(error_msg.clone()), None);
-                
+
                 // Send OS notification for error
                 notify_error(&error_msg);
             }
@@ -321,7 +329,7 @@ fn download_handbrake(ui_state: &mut UiState) {
                     // Get version information after verification
                     let version = {
                         let guard = manager.lock().await;
-                        guard.get_version().map(|v| v.to_string())
+                        guard.get_version()
                     };
 
                     // Send UI update for success
@@ -337,7 +345,10 @@ fn download_handbrake(ui_state: &mut UiState) {
                 Err(_e) => {
                     // If verification fails, proceed with download
                     // Send UI update for downloading
-                    send_handbrake_ui_update(HandBrakeOperationStatus::Downloading { progress: 0.0 }, None);
+                    send_handbrake_ui_update(
+                        HandBrakeOperationStatus::Downloading { progress: 0.0 },
+                        None,
+                    );
                     // Send OS notification for downloading
                     notify_info("Downloading HandBrake...");
 
@@ -350,11 +361,14 @@ fn download_handbrake(ui_state: &mut UiState) {
                             // Get version information after download
                             let version = {
                                 let guard = manager.lock().await;
-                                guard.get_version().map(|v| v.to_string())
+                                guard.get_version()
                             };
 
                             // Send UI update for success
-                            send_handbrake_ui_update(HandBrakeOperationStatus::Idle, version.clone());
+                            send_handbrake_ui_update(
+                                HandBrakeOperationStatus::Idle,
+                                version.clone(),
+                            );
 
                             // Send OS notification for success
                             if let Some(v) = &version {
@@ -366,7 +380,10 @@ fn download_handbrake(ui_state: &mut UiState) {
                         Err(e) => {
                             let error_msg = format!("HandBrake download failed: {}", e);
                             // Send UI update for error
-                            send_handbrake_ui_update(HandBrakeOperationStatus::Error(error_msg.clone()), None);
+                            send_handbrake_ui_update(
+                                HandBrakeOperationStatus::Error(error_msg.clone()),
+                                None,
+                            );
                             // Send OS notification for error
                             notify_error(&error_msg);
                         }
@@ -375,7 +392,10 @@ fn download_handbrake(ui_state: &mut UiState) {
             }
         } else {
             // Send UI update for downloading
-            send_handbrake_ui_update(HandBrakeOperationStatus::Downloading { progress: 0.0 }, None);
+            send_handbrake_ui_update(
+                HandBrakeOperationStatus::Downloading { progress: 0.0 },
+                None,
+            );
             // Send OS notification for downloading
             notify_info("Downloading HandBrake...");
 
@@ -389,7 +409,7 @@ fn download_handbrake(ui_state: &mut UiState) {
                     // Get version information after download
                     let version = {
                         let guard = manager.lock().await;
-                        guard.get_version().map(|v| v.to_string())
+                        guard.get_version()
                     };
 
                     // Send UI update for success
@@ -405,7 +425,10 @@ fn download_handbrake(ui_state: &mut UiState) {
                 Err(e) => {
                     let error_msg = format!("HandBrake download failed: {}", e);
                     // Send UI update for error
-                    send_handbrake_ui_update(HandBrakeOperationStatus::Error(error_msg.clone()), None);
+                    send_handbrake_ui_update(
+                        HandBrakeOperationStatus::Error(error_msg.clone()),
+                        None,
+                    );
                     // Send OS notification for error
                     notify_error(&error_msg);
                 }
@@ -436,7 +459,7 @@ fn verify_handbrake(ui_state: &mut UiState) {
                 // Get version information
                 let version = {
                     let guard = manager.lock().await;
-                    guard.get_version().map(|v| v.to_string())
+                    guard.get_version()
                 };
 
                 // Send UI update for success

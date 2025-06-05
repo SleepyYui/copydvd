@@ -1,8 +1,12 @@
+use crate::gui::icons::svg_icon;
 use crate::gui::state::UiState;
 use crate::gui::theme::{grouped_section, styled_panel, Layout};
 
 pub fn render_about_tab(ui: &mut egui::Ui, _ui_state: &mut UiState) {
-    ui.heading("About Copy DVD");
+    ui.horizontal(|ui| {
+        svg_icon(ui, "heart", 24.0, egui::Color32::from_rgb(255, 100, 150));
+        ui.heading("About Copy DVD");
+    });
     ui.separator();
 
     // Application Information
@@ -46,12 +50,12 @@ pub fn render_about_tab(ui: &mut egui::Ui, _ui_state: &mut UiState) {
     // Features
     styled_panel(ui, |ui| {
         grouped_section(ui, "Features", |ui| {
-            ui.label("• DVD detection and scanning");
-            ui.label("• Title and chapter selection");
-            ui.label("• Multiple output formats");
-            ui.label("• HandBrake integration");
-            ui.label("• Server upload support");
-            ui.label("• Simple, clean interface");
+            ui.label("- DVD detection and scanning");
+            ui.label("- Title and chapter selection");
+            ui.label("- Multiple output formats");
+            ui.label("- HandBrake integration");
+            ui.label("- Server upload support");
+            ui.label("- Simple, clean interface");
         });
     });
 

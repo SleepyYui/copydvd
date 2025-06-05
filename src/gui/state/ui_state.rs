@@ -54,8 +54,8 @@ pub struct UiState {
     pub handbrake_verification_visible_until: Option<Instant>,
 
     /// Simple channel for UI updates from async HandBrake operations
-    pub handbrake_ui_receiver: Option<std::sync::mpsc::Receiver<(HandBrakeOperationStatus, Option<String>)>>,
-
+    pub handbrake_ui_receiver:
+        Option<std::sync::mpsc::Receiver<(HandBrakeOperationStatus, Option<String>)>>,
 
     /// Download progress for async operations
     #[allow(dead_code)]
@@ -64,15 +64,16 @@ pub struct UiState {
     /// HandBrake phase progress for complex operations
     #[allow(dead_code)]
     pub handbrake_phase_progress: Option<Arc<std::sync::Mutex<(HandBrakeOperationStatus, f32)>>>,
-
 }
 
-
-
 // Global sender for simple HandBrake UI updates
-static mut HANDBRAKE_UI_SENDER: Option<std::sync::mpsc::Sender<(HandBrakeOperationStatus, Option<String>)>> = None;
+static mut HANDBRAKE_UI_SENDER: Option<
+    std::sync::mpsc::Sender<(HandBrakeOperationStatus, Option<String>)>,
+> = None;
 
-pub fn init_handbrake_ui_sender(sender: std::sync::mpsc::Sender<(HandBrakeOperationStatus, Option<String>)>) {
+pub fn init_handbrake_ui_sender(
+    sender: std::sync::mpsc::Sender<(HandBrakeOperationStatus, Option<String>)>,
+) {
     unsafe {
         HANDBRAKE_UI_SENDER = Some(sender);
     }
@@ -97,7 +98,6 @@ pub enum Tab {
     About,
 }
 
-
 impl Tab {
     pub fn name(&self) -> &'static str {
         match self {
@@ -109,14 +109,13 @@ impl Tab {
         }
     }
 
-    #[allow(dead_code)]
     pub fn icon(&self) -> &'static str {
         match self {
-            Tab::Main => "",
-            Tab::Config => "",
-            Tab::Server => "",
-            Tab::HandBrake => "",
-            Tab::About => "",
+            Tab::Main => "play",
+            Tab::Config => "gear",
+            Tab::Server => "upload",
+            Tab::HandBrake => "wrench",
+            Tab::About => "info",
         }
     }
 
@@ -416,7 +415,6 @@ impl UiState {
     pub fn clear_error(&mut self) {
         self.error_message.clear();
     }
-
 
     /// Set status message
     #[allow(dead_code)]

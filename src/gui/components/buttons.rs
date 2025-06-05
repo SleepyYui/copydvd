@@ -64,7 +64,7 @@ pub fn browse_button() -> Button<'static> {
 
 /// Create a refresh button
 pub fn refresh_button() -> Button<'static> {
-    Button::new("🔄")
+    Button::new("Refresh")
         .fill(ModernTheme::NEON_CYAN)
         .rounding(Rounding::same(StyleConstants::ROUNDING_FULL))
 }

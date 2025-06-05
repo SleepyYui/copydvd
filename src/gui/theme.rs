@@ -138,7 +138,7 @@ pub fn status_indicator(ui: &mut egui::Ui, text: &str, status_type: StatusType) 
     };
 
     ui.horizontal(|ui| {
-        ui.colored_label(color, "●");
+        ui.colored_label(color, "-");
         ui.label(text);
     });
 }

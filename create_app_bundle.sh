@@ -7,13 +7,18 @@ set -e
 APP_NAME="Copy DVD"
 BUNDLE_NAME="Copy DVD.app"
 BUNDLE_ID="com.sleepyyui.copydvd"
-VERSION="0.1.11"
+TARGET=${1:-"x86_64-apple-darwin"}
 
-echo "Building Copy DVD app bundle..."
+# Extract version from Cargo.toml
+VERSION=$(grep "^version = " Cargo.toml | sed 's/version = "\(.*\)"/\1/')
 
-# Build the release binary
-echo "Building release binary..."
-cargo build --release
+echo "Building Copy DVD app bundle for target: $TARGET"
+
+# Build the release binary (skip if binary already exists from CI)
+if [ ! -f "target/$TARGET/release/copydvd" ]; then
+    echo "Building release binary..."
+    cargo build --release --target $TARGET
+fi
 
 # Create app bundle structure
 echo "Creating app bundle structure..."
@@ -22,7 +27,7 @@ mkdir -p "$BUNDLE_NAME/Contents/Resources"
 
 # Copy the binary
 echo "Copying binary..."
-cp "target/release/copydvd" "$BUNDLE_NAME/Contents/MacOS/"
+cp "target/$TARGET/release/copydvd" "$BUNDLE_NAME/Contents/MacOS/"
 
 # Copy Info.plist
 echo "Copying Info.plist..."

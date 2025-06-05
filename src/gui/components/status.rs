@@ -25,7 +25,7 @@ pub fn error_display(ui: &mut egui::Ui, error_message: &mut String) {
                 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.add(
-                        egui::Button::new("✕")
+                        egui::Button::new("X")
                             .fill(ModernTheme::ERROR)
                             .rounding(Rounding::same(StyleConstants::ROUNDING_FULL))
                     ).clicked() {

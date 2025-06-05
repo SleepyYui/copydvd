@@ -940,7 +940,7 @@ impl HandBrakeManager {
                     format!(
                         "HandBrake was terminated by macOS Gatekeeper ({}). Automatic security fixes were attempted.\n\
                         \n\
-                        ⚠️  ACTION REQUIRED: macOS is still blocking this unsigned binary.\n\
+                        ! ACTION REQUIRED: macOS is still blocking this unsigned binary.\n\
                         \n\
                         The application automatically tried to fix this, but manual intervention may be needed:\n\
                         \n\
@@ -1454,9 +1454,23 @@ impl HandBrakeManager {
         "unknown".to_string()
     }
 
-    /// Get the currently detected HandBrake version
-    pub fn get_version(&self) -> Option<&str> {
-        self.version.as_deref()
+    /// Get the currently detected HandBrake version number (e.g., "1.9.2")
+    pub fn get_version(&self) -> Option<String> {
+        self.version.as_ref().and_then(|v| {
+            // Extract version number from strings like "HandBrake 1.9.2"
+            if let Some(captures) = regex::Regex::new(r"HandBrake\s+(\d+\.\d+\.\d+)")
+                .ok()
+                .and_then(|re| re.captures(v)) 
+            {
+                captures.get(1).map(|m| m.as_str().to_string())
+            } else {
+                // Fallback: try to extract any version-like pattern (x.y.z)
+                regex::Regex::new(r"(\d+\.\d+\.\d+)")
+                    .ok()
+                    .and_then(|re| re.find(v))
+                    .map(|m| m.as_str().to_string())
+            }
+        })
     }
 }
 

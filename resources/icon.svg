@@ -1,77 +1,57 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <!-- Gradient for the DVD disc -->
+    <!-- Blue gradient for the DVD disc -->
     <radialGradient id="dvdGradient" cx="50%" cy="30%" r="70%">
-      <stop offset="0%" style="stop-color:#E8E8E8;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#CCCCCC;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#999999;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#64B5F6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#2196F3;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1976D2;stop-opacity:1" />
     </radialGradient>
     
     <!-- Gradient for the center hole -->
     <radialGradient id="holeGradient" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" style="stop-color:#333333;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#666666;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#424242;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#212121;stop-opacity:1" />
     </radialGradient>
     
-    <!-- Gradient for the arrow -->
-    <linearGradient id="arrowGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#4CAF50;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#2E7D32;stop-opacity:1" />
-    </linearGradient>
+    <!-- Eye gradient -->
+    <radialGradient id="eyeGradient" cx="30%" cy="30%" r="70%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F5F5F5;stop-opacity:1" />
+    </radialGradient>
     
-    <!-- Background gradient -->
-    <radialGradient id="bgGradient" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" style="stop-color:#1E88E5;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#1565C0;stop-opacity:1" />
+    <!-- Pupil gradient -->
+    <radialGradient id="pupilGradient" cx="30%" cy="30%" r="70%">
+      <stop offset="0%" style="stop-color:#212121;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#424242;stop-opacity:1" />
     </radialGradient>
   </defs>
   
-  <!-- Background circle -->
-  <circle cx="256" cy="256" r="256" fill="url(#bgGradient)"/>
-  
-  <!-- Main DVD disc (source) -->
-  <circle cx="180" cy="200" r="80" fill="url(#dvdGradient)" stroke="#777" stroke-width="2"/>
+  <!-- Main DVD disc -->
+  <circle cx="256" cy="256" r="200" fill="url(#dvdGradient)" stroke="#1565C0" stroke-width="6"/>
   
   <!-- DVD center hole -->
-  <circle cx="180" cy="200" r="25" fill="url(#holeGradient)"/>
+  <circle cx="256" cy="256" r="50" fill="url(#holeGradient)"/>
   
-  <!-- DVD inner circle detail -->
-  <circle cx="180" cy="200" r="55" fill="none" stroke="#AAA" stroke-width="1" opacity="0.5"/>
+  <!-- Data track rings -->
+  <circle cx="256" cy="256" r="170" fill="none" stroke="#1E88E5" stroke-width="2" opacity="0.4"/>
+  <circle cx="256" cy="256" r="140" fill="none" stroke="#1E88E5" stroke-width="1" opacity="0.3"/>
+  <circle cx="256" cy="256" r="110" fill="none" stroke="#1E88E5" stroke-width="1" opacity="0.3"/>
+  <circle cx="256" cy="256" r="80" fill="none" stroke="#1E88E5" stroke-width="1" opacity="0.3"/>
   
-  <!-- Copy arrow pointing to the right -->
-  <path d="M 280 180 L 320 200 L 280 220 L 280 210 L 250 210 L 250 190 L 280 190 Z" 
-        fill="url(#arrowGradient)" stroke="#1B5E20" stroke-width="2"/>
+  <!-- Left googly eye (larger) -->
+  <circle cx="200" cy="200" r="40" fill="url(#eyeGradient)" stroke="#BDBDBD" stroke-width="3"/>
+  <circle cx="205" cy="205" r="20" fill="url(#pupilGradient)"/>
+  <circle cx="208" cy="200" r="8" fill="white" opacity="0.9"/>
   
-  <!-- Target DVD disc (destination) -->
-  <circle cx="380" cy="200" r="80" fill="url(#dvdGradient)" stroke="#777" stroke-width="2"/>
+  <!-- Right googly eye (smaller for asymmetry) -->
+  <circle cx="320" cy="180" r="32" fill="url(#eyeGradient)" stroke="#BDBDBD" stroke-width="3"/>
+  <circle cx="325" cy="185" r="16" fill="url(#pupilGradient)"/>
+  <circle cx="327" cy="182" r="6" fill="white" opacity="0.9"/>
   
-  <!-- Target DVD center hole -->
-  <circle cx="380" cy="200" r="25" fill="url(#holeGradient)"/>
+  <!-- Simple smile (optional) -->
+  <path d="M 220 300 Q 256 330 292 300" fill="none" stroke="#1565C0" stroke-width="4" stroke-linecap="round"/>
   
-  <!-- Target DVD inner circle detail -->
-  <circle cx="380" cy="200" r="55" fill="none" stroke="#AAA" stroke-width="1" opacity="0.5"/>
-  
-  <!-- DVD label text on source disc -->
-  <text x="180" y="205" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#333">DVD</text>
-  
-  <!-- Copy indicator on target disc -->
-  <text x="380" y="205" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#333">MP4</text>
-  
-  <!-- App title at bottom -->
-  <text x="256" y="350" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="white">Copy DVD</text>
-  
-  <!-- Subtitle -->
-  <text x="256" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#E3F2FD">DVD to Digital</text>
-  
-  <!-- Progress indicator dots -->
-  <circle cx="230" cy="240" r="3" fill="#4CAF50"/>
-  <circle cx="245" cy="240" r="3" fill="#4CAF50"/>
-  <circle cx="260" cy="240" r="3" fill="#4CAF50"/>
-  <circle cx="275" cy="240" r="3" fill="#81C784"/>
-  <circle cx="290" cy="240" r="3" fill="#C8E6C9"/>
-  
-  <!-- Subtle shine effect on main discs -->
-  <ellipse cx="160" cy="180" rx="15" ry="30" fill="white" opacity="0.3" transform="rotate(-30 160 180)"/>
-  <ellipse cx="360" cy="180" rx="15" ry="30" fill="white" opacity="0.3" transform="rotate(-30 360 180)"/>
+  <!-- Subtle shine effect on the disc -->
+  <ellipse cx="180" cy="160" rx="30" ry="60" fill="white" opacity="0.15" transform="rotate(-30 180 160)"/>
 </svg>

@@ -4,10 +4,15 @@ pub struct OSNotifications;
 
 impl OSNotifications {
     pub fn success(title: &str, message: &str) {
-        tracing::info!("Attempting to show success notification: {} - {}", title, message);
+        tracing::info!(
+            "Attempting to show success notification: {} - {}",
+            title,
+            message
+        );
         match Notification::new()
             .summary(title)
             .body(message)
+            .icon("resources/icon.svg")
             .timeout(Timeout::Milliseconds(5000))
             .show()
         {
@@ -21,10 +26,15 @@ impl OSNotifications {
     }
 
     pub fn error(title: &str, message: &str) {
-        tracing::info!("Attempting to show error notification: {} - {}", title, message);
+        tracing::info!(
+            "Attempting to show error notification: {} - {}",
+            title,
+            message
+        );
         match Notification::new()
             .summary(title)
             .body(message)
+            .icon("resources/icon.svg")
             .timeout(Timeout::Milliseconds(8000))
             .show()
         {
@@ -39,10 +49,15 @@ impl OSNotifications {
 
     #[allow(dead_code)]
     pub fn warning(title: &str, message: &str) {
-        tracing::info!("Attempting to show warning notification: {} - {}", title, message);
+        tracing::info!(
+            "Attempting to show warning notification: {} - {}",
+            title,
+            message
+        );
         match Notification::new()
             .summary(title)
             .body(message)
+            .icon("resources/icon.svg")
             .timeout(Timeout::Milliseconds(6000))
             .show()
         {
@@ -56,10 +71,15 @@ impl OSNotifications {
     }
 
     pub fn info(title: &str, message: &str) {
-        tracing::info!("Attempting to show info notification: {} - {}", title, message);
+        tracing::info!(
+            "Attempting to show info notification: {} - {}",
+            title,
+            message
+        );
         match Notification::new()
             .summary(title)
             .body(message)
+            .icon("resources/icon.svg")
             .timeout(Timeout::Milliseconds(4000))
             .show()
         {

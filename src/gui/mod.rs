@@ -1,5 +1,6 @@
 use crate::app::state::AppState;
 use crate::config::Config;
+use crate::gui::icons::svg_icon;
 use crate::gui::state::{HandBrakeOperationStatus, Tab, UiState, UpdateStatus};
 use crate::gui::tabs::*;
 use crate::gui::theme::apply_theme;
@@ -12,6 +13,7 @@ use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 
 pub mod components;
+pub mod icons;
 pub mod notifications;
 pub mod state;
 pub mod tabs;
@@ -54,16 +56,16 @@ fn load_icon() -> egui::IconData {
             let (width, height) = rgba_image.dimensions();
             return egui::IconData {
                 rgba: rgba_image.into_raw(),
-                width: width as u32,
-                height: height as u32,
+                width,
+                height,
             };
         }
     }
-    
+
     // Fallback: create a simple icon programmatically
     let size = 64;
     let mut rgba = vec![0u8; size * size * 4];
-    
+
     // Create a simple DVD icon pattern
     for y in 0..size {
         for x in 0..size {
@@ -71,18 +73,18 @@ fn load_icon() -> egui::IconData {
             let center_x = size as f32 / 2.0;
             let center_y = size as f32 / 2.0;
             let distance = ((x as f32 - center_x).powi(2) + (y as f32 - center_y).powi(2)).sqrt();
-            
+
             if distance < 28.0 && distance > 8.0 {
                 // DVD disc area - silver color
-                rgba[idx] = 200;     // R
-                rgba[idx + 1] = 200; // G  
+                rgba[idx] = 200; // R
+                rgba[idx + 1] = 200; // G
                 rgba[idx + 2] = 200; // B
                 rgba[idx + 3] = 255; // A
             } else if distance <= 8.0 {
                 // Center hole - dark
-                rgba[idx] = 50;      // R
-                rgba[idx + 1] = 50;  // G
-                rgba[idx + 2] = 50;  // B
+                rgba[idx] = 50; // R
+                rgba[idx + 1] = 50; // G
+                rgba[idx + 2] = 50; // B
                 rgba[idx + 3] = 255; // A
             } else {
                 // Transparent background
@@ -90,7 +92,7 @@ fn load_icon() -> egui::IconData {
             }
         }
     }
-    
+
     egui::IconData {
         rgba,
         width: size as u32,
@@ -189,9 +191,8 @@ impl CopyDvdApp {
         if let Ok(status) = self.handbrake_receiver.try_recv() {
             // Set visibility timeout when HandBrake is verified
             if matches!(status, HandBrakeStatus::Verified(_)) {
-                self.ui_state.handbrake_verification_visible_until = Some(
-                    Instant::now() + Duration::from_secs(5)
-                );
+                self.ui_state.handbrake_verification_visible_until =
+                    Some(Instant::now() + Duration::from_secs(5));
             }
             self.handbrake_status = Some(status);
         }
@@ -230,15 +231,17 @@ impl CopyDvdApp {
                 self.ui_state.handbrake_version = version;
 
                 // Set visibility timeout when HandBrake becomes ready
-                if matches!(self.ui_state.handbrake_status, HandBrakeOperationStatus::Idle) && self.ui_state.handbrake_version.is_some() {
-                    self.ui_state.handbrake_verification_visible_until = Some(
-                        Instant::now() + Duration::from_secs(5)
-                    );
+                if matches!(
+                    self.ui_state.handbrake_status,
+                    HandBrakeOperationStatus::Idle
+                ) && self.ui_state.handbrake_version.is_some()
+                {
+                    self.ui_state.handbrake_verification_visible_until =
+                        Some(Instant::now() + Duration::from_secs(5));
                 }
             }
         }
     }
-
 
     fn save_all_configs(&mut self) {
         self.update_config_from_ui();
@@ -288,9 +291,19 @@ impl CopyDvdApp {
             for tab in Tab::all() {
                 let is_active = self.ui_state.active_tab == tab;
 
-                if ui.selectable_label(is_active, tab.name()).clicked() {
-                    self.ui_state.active_tab = tab;
-                }
+                ui.horizontal(|ui| {
+                    // Add icon before tab name
+                    svg_icon(ui, tab.icon(), 16.0, 
+                        if is_active { 
+                            egui::Color32::from_rgb(100, 200, 255) 
+                        } else { 
+                            egui::Color32::from_rgb(150, 150, 150) 
+                        });
+                    
+                    if ui.selectable_label(is_active, tab.name()).clicked() {
+                        self.ui_state.active_tab = tab;
+                    }
+                });
             }
         });
         ui.separator();
@@ -364,11 +377,17 @@ impl eframe::App for CopyDvdApp {
                         if let Some(handbrake_status) = &self.handbrake_status {
                             match handbrake_status {
                                 HandBrakeStatus::Verifying => {
-                                    ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "🔍 Verifying HandBrake installation...");
+                                    ui.horizontal(|ui| {
+                                        svg_icon(ui, "search", 16.0, egui::Color32::from_rgb(255, 165, 0));
+                                        ui.colored_label(egui::Color32::from_rgb(255, 165, 0), " Verifying HandBrake installation...");
+                                    });
                                     ui.separator();
                                 }
                                 HandBrakeStatus::Verified(path) => {
-                                    ui.colored_label(egui::Color32::from_rgb(0, 150, 0), format!("✅ HandBrake verified: {}", path));
+                                    ui.horizontal(|ui| {
+                                        svg_icon(ui, "check", 16.0, egui::Color32::from_rgb(0, 150, 0));
+                                        ui.colored_label(egui::Color32::from_rgb(0, 150, 0), format!(" HandBrake verified: {}", path));
+                                    });
                                     ui.separator();
                                 }
                                 HandBrakeStatus::Error(error) => {
@@ -378,10 +397,16 @@ impl eframe::App for CopyDvdApp {
                                 let auto_fixes_attempted = error_clone.contains("Automatic security fixes were attempted");
 
                                 if auto_fixes_attempted {
-                                    ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "⚡ HandBrake Auto-Fix Attempted:");
+                                    ui.horizontal(|ui| {
+                                        svg_icon(ui, "lightning", 16.0, egui::Color32::from_rgb(255, 165, 0));
+                                        ui.colored_label(egui::Color32::from_rgb(255, 165, 0), " HandBrake Auto-Fix Attempted:");
+                                    });
                                     ui.label("The application automatically tried to resolve macOS security issues.");
                                 } else {
-                                    ui.colored_label(egui::Color32::from_rgb(200, 50, 50), "❌ HandBrake Error:");
+                                    ui.horizontal(|ui| {
+                                        svg_icon(ui, "cross", 16.0, egui::Color32::from_rgb(200, 50, 50));
+                                        ui.colored_label(egui::Color32::from_rgb(200, 50, 50), " HandBrake Error:");
+                                    });
                                 }
                                 ui.separator();
 
@@ -400,9 +425,9 @@ impl eframe::App for CopyDvdApp {
                                 ui.horizontal(|ui| {
                                     // Add retry button with different text based on auto-fixes
                                     let button_text = if auto_fixes_attempted {
-                                        "🔄 Retry After Auto-Fix"
+                                        "Retry After Auto-Fix"
                                     } else {
-                                        "🔄 Retry HandBrake Verification"
+                                        "Retry HandBrake Verification"
                                     };
 
                                     if ui.button(button_text).clicked() {
@@ -434,7 +459,7 @@ impl eframe::App for CopyDvdApp {
 
                                     // Add macOS-specific System Preferences button - always show on macOS
                                     #[cfg(target_os = "macos")]
-                                    if ui.button("🔧 Open Security Settings").clicked() {
+                                    if ui.button("Open Security Settings").clicked() {
                                         tokio::spawn(async {
                                             // Try multiple methods to open Security preferences
                                             let methods = [
@@ -455,13 +480,19 @@ impl eframe::App for CopyDvdApp {
                                 // Show helpful status message for auto-fixes
                                 if auto_fixes_attempted {
                                     ui.separator();
-                                    ui.colored_label(egui::Color32::from_rgb(100, 150, 255), "💡 What happened:");
-                                    ui.label("• Removed quarantine attributes automatically");
-                                    ui.label("• Set executable permissions");
-                                    ui.label("• Attempted to open Security preferences");
-                                    ui.label("• Triggered macOS security dialog");
+                                    ui.horizontal(|ui| {
+                                        svg_icon(ui, "lightbulb", 16.0, egui::Color32::from_rgb(100, 150, 255));
+                                        ui.colored_label(egui::Color32::from_rgb(100, 150, 255), " What happened:");
+                                    });
+                                    ui.label("- Removed quarantine attributes automatically");
+                                    ui.label("- Set executable permissions");
+                                    ui.label("- Attempted to open Security preferences");
+                                    ui.label("- Triggered macOS security dialog");
                                     ui.add_space(5.0);
-                                    ui.colored_label(egui::Color32::from_rgb(255, 200, 100), "➡️ Next steps:");
+                                    ui.horizontal(|ui| {
+                                        svg_icon(ui, "arrow-right", 16.0, egui::Color32::from_rgb(255, 200, 100));
+                                        ui.colored_label(egui::Color32::from_rgb(255, 200, 100), " Next steps:");
+                                    });
                                     ui.label("1. Click 'Retry After Auto-Fix' above");
                                     ui.label("2. If still blocked, use 'Open Security Settings'");
                                     ui.label("3. Look for 'Allow Anyway' button in Security settings");
@@ -508,7 +539,6 @@ impl eframe::App for CopyDvdApp {
         if ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::S)) {
             self.save_all_configs();
         }
-
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {

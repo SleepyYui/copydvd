@@ -44,7 +44,6 @@ async fn main() -> Result<()> {
         std::env::current_dir().unwrap_or_default()
     );
 
-
     // Set environment variables to work around font rendering issues on macOS
     #[cfg(target_os = "macos")]
     {
