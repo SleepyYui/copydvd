@@ -2,8 +2,8 @@ use crate::config::Config;
 use crate::gui::notifications::{notify_error, notify_info, notify_success};
 use crate::gui::state::UiState;
 use crate::gui::theme::{
-    modern_button, modern_card, modern_input, section_header, status_indicator,
-    ButtonVariant, ModernTheme, Spacing, StatusType,
+    modern_button, modern_card, modern_input, section_header, status_indicator, ButtonVariant,
+    ModernTheme, Spacing, StatusType,
 };
 use std::sync::{Arc, Mutex};
 
@@ -157,8 +157,7 @@ fn render_upload_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
         // Compress files during transfer
         ui.checkbox(
             &mut ui_state.config_temp.compress_transfer,
-            egui::RichText::new("Compress files during transfer")
-                .color(ModernTheme::TEXT_PRIMARY),
+            egui::RichText::new("Compress files during transfer").color(ModernTheme::TEXT_PRIMARY),
         );
         ui.add_space(Spacing::SM);
 

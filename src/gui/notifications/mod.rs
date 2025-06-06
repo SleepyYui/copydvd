@@ -7,36 +7,35 @@ const ICON_DATA: &[u8] = include_bytes!("../../../resources/icons/icon-64.png");
 
 fn get_notification_with_icon(title: &str, body: &str, timeout_ms: u32) -> Notification {
     let mut notification = Notification::new();
-    notification.summary(title).body(body).timeout(Timeout::Milliseconds(timeout_ms));
-    
+    notification
+        .summary(title)
+        .body(body)
+        .timeout(Timeout::Milliseconds(timeout_ms));
+
     // Try to create a persistent temp file for the icon
-    match std::env::temp_dir().join(format!("copydvd_icon_{}.png", std::process::id())) {
-        temp_path => {
-            // Only create the file if it doesn't exist
-            if !temp_path.exists() {
-                if let Ok(mut file) = std::fs::File::create(&temp_path) {
-                    use std::io::Write;
-                    if file.write_all(ICON_DATA).is_ok() && file.sync_all().is_ok() {
-                        tracing::info!("Created persistent icon at: {:?}", temp_path);
-                        notification.icon(&temp_path.to_string_lossy());
-                        return notification;
-                    }
-                }
-                tracing::error!("Failed to create icon file");
-            } else {
-                // File exists, just use it
+    let temp_path = std::env::temp_dir().join(format!("copydvd_icon_{}.png", std::process::id()));
+    if !temp_path.exists() {
+        if let Ok(mut file) = std::fs::File::create(&temp_path) {
+            use std::io::Write;
+            if file.write_all(ICON_DATA).is_ok() && file.sync_all().is_ok() {
+                tracing::info!("Created persistent icon at: {:?}", temp_path);
                 notification.icon(&temp_path.to_string_lossy());
                 return notification;
             }
         }
+        tracing::error!("Failed to create icon file");
+    } else {
+        // File exists, just use it
+        notification.icon(&temp_path.to_string_lossy());
+        return notification;
     }
-    
+
     // Fallback: try to use a data URI (may not work on all platforms)
-    use base64::{Engine, engine::general_purpose};
+    use base64::{engine::general_purpose, Engine};
     let base64_icon = general_purpose::STANDARD.encode(ICON_DATA);
     let data_uri = format!("data:image/png;base64,{}", base64_icon);
     notification.icon(&data_uri);
-    
+
     notification
 }
 
@@ -47,9 +46,8 @@ impl OSNotifications {
             title,
             message
         );
-        
-        match get_notification_with_icon(title, message, 5000).show()
-        {
+
+        match get_notification_with_icon(title, message, 5000).show() {
             Ok(handle) => {
                 tracing::info!("Success notification sent successfully: {:?}", handle);
             }
@@ -65,9 +63,8 @@ impl OSNotifications {
             title,
             message
         );
-        
-        match get_notification_with_icon(title, message, 8000).show()
-        {
+
+        match get_notification_with_icon(title, message, 8000).show() {
             Ok(handle) => {
                 tracing::info!("Error notification sent successfully: {:?}", handle);
             }
@@ -84,9 +81,8 @@ impl OSNotifications {
             title,
             message
         );
-        
-        match get_notification_with_icon(title, message, 6000).show()
-        {
+
+        match get_notification_with_icon(title, message, 6000).show() {
             Ok(handle) => {
                 tracing::info!("Warning notification sent successfully: {:?}", handle);
             }
@@ -102,9 +98,8 @@ impl OSNotifications {
             title,
             message
         );
-        
-        match get_notification_with_icon(title, message, 4000).show()
-        {
+
+        match get_notification_with_icon(title, message, 4000).show() {
             Ok(handle) => {
                 tracing::info!("Info notification sent successfully: {:?}", handle);
             }

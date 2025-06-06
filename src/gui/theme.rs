@@ -244,7 +244,10 @@ where
 
 /// Modern content wrapper for main content areas
 #[allow(dead_code, reason = "Future feature for content area styling")]
-pub fn content_wrapper<R>(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
+pub fn content_wrapper<R>(
+    ui: &mut egui::Ui,
+    add_contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
     let frame = egui::Frame {
         fill: Color32::TRANSPARENT,
         stroke: egui::Stroke::NONE,
@@ -253,11 +256,11 @@ pub fn content_wrapper<R>(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui
         outer_margin: egui::Margin::ZERO,
         shadow: egui::epaint::Shadow::NONE,
     };
-    
+
     frame.show(ui, add_contents)
 }
 
-/// Modern input field with improved styling  
+/// Modern input field with improved styling
 pub fn modern_input(ui: &mut egui::Ui, text: &mut String, placeholder: &str) -> egui::Response {
     let text_edit = egui::TextEdit::singleline(text)
         .hint_text(egui::RichText::new(placeholder).color(ModernTheme::TEXT_TERTIARY))
@@ -283,11 +286,7 @@ pub fn icon_with_text(
 }
 
 /// Modern navigation item for sidebar
-pub fn nav_item(
-    ui: &mut egui::Ui,
-    text: &str,
-    is_active: bool,
-) -> egui::Response {
+pub fn nav_item(ui: &mut egui::Ui, text: &str, is_active: bool) -> egui::Response {
     let (bg_color, text_color, _border_color) = if is_active {
         (
             Color32::from_rgba_unmultiplied(138, 92, 246, 25), // Subtle accent background
@@ -304,14 +303,14 @@ pub fn nav_item(
 
     let desired_size = egui::Vec2::new(ui.available_width(), 48.0);
     let response = ui.allocate_response(desired_size, egui::Sense::click());
-    
+
     // Hover effect
     let final_bg_color = if response.hovered() && !is_active {
         Color32::from_rgba_unmultiplied(255, 255, 255, 8)
     } else {
         bg_color
     };
-    
+
     if ui.is_rect_visible(response.rect) {
         // Background
         ui.painter().rect_filled(
@@ -319,7 +318,7 @@ pub fn nav_item(
             egui::Rounding::same(BorderRadius::LG),
             final_bg_color,
         );
-        
+
         // Left border for active state
         if is_active {
             let border_rect = egui::Rect::from_min_size(
@@ -332,20 +331,22 @@ pub fn nav_item(
                 ModernTheme::ACCENT_PRIMARY,
             );
         }
-        
+
         // Content
         let content_rect = response.rect.shrink2(egui::Vec2::new(Spacing::MD, 0.0));
         ui.allocate_ui_at_rect(content_rect, |ui| {
             ui.horizontal_centered(|ui| {
                 ui.add_space(Spacing::LG);
-                ui.label(egui::RichText::new(text)
-                    .color(text_color)
-                    .size(14.0)
-                    .strong());
+                ui.label(
+                    egui::RichText::new(text)
+                        .color(text_color)
+                        .size(14.0)
+                        .strong(),
+                );
             });
         });
     }
-    
+
     response
 }
 

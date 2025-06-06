@@ -1,7 +1,5 @@
 use crate::gui::state::UiState;
-use crate::gui::theme::{
-    modern_card, section_header, ModernTheme, Spacing,
-};
+use crate::gui::theme::{modern_card, section_header, ModernTheme, Spacing};
 
 pub fn render_about_tab(ui: &mut egui::Ui, _ui_state: &mut UiState) {
     // Header
@@ -19,21 +17,17 @@ pub fn render_about_tab(ui: &mut egui::Ui, _ui_state: &mut UiState) {
         section_header(ui, "Application Information", None::<fn(&mut egui::Ui)>);
 
         ui.label(
-            egui::RichText::new("CopyDVD - Simple DVD Copy Tool")
-                .color(ModernTheme::TEXT_PRIMARY),
+            egui::RichText::new("CopyDVD - Simple DVD Copy Tool").color(ModernTheme::TEXT_PRIMARY),
         );
         ui.add_space(Spacing::SM);
 
         ui.label(
-            egui::RichText::new(&format!("Version: {}", env!("CARGO_PKG_VERSION")))
+            egui::RichText::new(format!("Version: {}", env!("CARGO_PKG_VERSION")))
                 .color(ModernTheme::TEXT_PRIMARY),
         );
         ui.add_space(Spacing::SM);
 
-        ui.label(
-            egui::RichText::new("Built with Rust and egui")
-                .color(ModernTheme::TEXT_PRIMARY),
-        );
+        ui.label(egui::RichText::new("Built with Rust and egui").color(ModernTheme::TEXT_PRIMARY));
 
         ui.add_space(Spacing::MD);
 
@@ -102,10 +96,7 @@ pub fn render_about_tab(ui: &mut egui::Ui, _ui_state: &mut UiState) {
         ];
 
         for (_icon, text) in &features {
-            ui.label(
-                egui::RichText::new(*text)
-                    .color(ModernTheme::TEXT_PRIMARY),
-            );
+            ui.label(egui::RichText::new(*text).color(ModernTheme::TEXT_PRIMARY));
             ui.add_space(Spacing::SM);
         }
     });
@@ -129,8 +120,7 @@ pub fn render_about_tab(ui: &mut egui::Ui, _ui_state: &mut UiState) {
 
         if ui
             .link(
-                egui::RichText::new("Rust Programming Language")
-                    .color(ModernTheme::ACCENT_PRIMARY),
+                egui::RichText::new("Rust Programming Language").color(ModernTheme::ACCENT_PRIMARY),
             )
             .clicked()
         {

@@ -7,7 +7,7 @@ pub fn error_display(ui: &mut egui::Ui, error_message: &mut String) {
     if !error_message.is_empty() {
         let error_text = error_message.clone();
         let mut should_clear = false;
-        
+
         glass_card(ui, true, |ui| {
             ui.horizontal(|ui| {
                 // Error icon
@@ -17,12 +17,12 @@ pub fn error_display(ui: &mut egui::Ui, error_message: &mut String) {
                     ModernTheme::ERROR,
                 );
                 ui.add_space(20.0);
-                
+
                 ui.vertical(|ui| {
                     ui.colored_label(ModernTheme::ERROR, "Error");
                     ui.colored_label(ModernTheme::TEXT_PRIMARY, &error_text);
                 });
-                
+
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.add(
                         egui::Button::new("X")
@@ -35,7 +35,7 @@ pub fn error_display(ui: &mut egui::Ui, error_message: &mut String) {
             });
         });
         ui.add_space(StyleConstants::SPACING_MD);
-        
+
         if should_clear {
             error_message.clear();
         }
@@ -89,11 +89,11 @@ pub fn status_bar(ui: &mut egui::Ui, status: &AppStatus, message: &str) {
         AppStatus::Error(_) => (ModernTheme::ERROR, "Error", true),
         _ => (ModernTheme::TEXT_SECONDARY, "Active", false),
     };
-    
+
     glass_card(ui, glow, |ui| {
         ui.horizontal(|ui| {
             status_indicator(ui, text, color, glow);
-            
+
             if !message.is_empty() {
                 ui.add_space(StyleConstants::SPACING_MD);
                 ui.colored_label(ModernTheme::TEXT_SECONDARY, message);
@@ -126,7 +126,7 @@ pub fn status_dot(ui: &mut egui::Ui, status_type: StatusType) {
         StatusType::Normal => ModernTheme::TEXT_PRIMARY,
         StatusType::Muted => ModernTheme::TEXT_MUTED,
     };
-    
+
     ui.painter().circle_filled(
         ui.next_widget_position() + Vec2::new(6.0, 8.0),
         4.0,
@@ -144,7 +144,7 @@ pub fn task_status(ui: &mut egui::Ui, task_name: &str, status: TaskStatus) {
         TaskStatus::Failed => (ModernTheme::ERROR, "Failed", true),
         TaskStatus::Cancelled => (ModernTheme::WARNING, "Cancelled", false),
     };
-    
+
     ui.horizontal(|ui| {
         status_indicator(ui, status_text, color, glow);
         ui.add_space(StyleConstants::SPACING_MD);
@@ -188,17 +188,17 @@ pub fn section<R>(
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> R {
     ui.horizontal(|ui| {
-        ui.colored_label(ModernTheme::TEXT_BRIGHT, 
+        ui.colored_label(ModernTheme::TEXT_BRIGHT,
             egui::RichText::new(title)
                 .size(16.0)
                 .strong()
         );
     });
-    
+
     ui.add_space(StyleConstants::SPACING_SM);
     let response = add_contents(ui);
     ui.add_space(StyleConstants::SPACING_MD);
-    
+
     response
 }
 

@@ -259,57 +259,56 @@ impl CopyDvdApp {
         }
     }
 
-
     fn render_sidebar(&mut self, ui: &mut egui::Ui) {
         ui.add_space(Spacing::LG);
-        
+
         // App branding section
         ui.horizontal(|ui| {
             ui.add_space(Spacing::MD);
             ui.add_space(Spacing::MD);
             ui.vertical(|ui| {
-                ui.label(egui::RichText::new("CopyDVD")
-                    .size(18.0)
-                    .color(ModernTheme::TEXT_PRIMARY)
-                    .strong());
-                ui.label(egui::RichText::new("Media Tool")
-                    .size(12.0)
-                    .color(ModernTheme::TEXT_TERTIARY));
+                ui.label(
+                    egui::RichText::new("CopyDVD")
+                        .size(18.0)
+                        .color(ModernTheme::TEXT_PRIMARY)
+                        .strong(),
+                );
+                ui.label(
+                    egui::RichText::new("Media Tool")
+                        .size(12.0)
+                        .color(ModernTheme::TEXT_TERTIARY),
+                );
             });
         });
-        
+
         ui.add_space(Spacing::XL);
-        
+
         // Navigation items
         ui.add_space(Spacing::SM);
         for tab in Tab::all() {
             let is_active = self.ui_state.active_tab == tab;
-            
-            if nav_item(
-                ui,
-                tab.name(),
-                is_active,
-            )
-            .clicked()
-            {
+
+            if nav_item(ui, tab.name(), is_active).clicked() {
                 self.ui_state.active_tab = tab;
             }
-            
+
             ui.add_space(Spacing::XS);
         }
-        
+
         ui.add_space(Spacing::XL);
-        
+
         // Status section at bottom
         ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
             ui.add_space(Spacing::LG);
-            
+
             // Current status
             if let Ok(state) = self.app_state.try_lock() {
                 let (status_text, status_color) = match &state.status {
                     crate::app::state::AppStatus::Idle => ("Ready", ModernTheme::SUCCESS),
                     crate::app::state::AppStatus::Scanning => ("Scanning", ModernTheme::INFO),
-                    crate::app::state::AppStatus::Ripping { .. } => ("Processing", ModernTheme::WARNING),
+                    crate::app::state::AppStatus::Ripping { .. } => {
+                        ("Processing", ModernTheme::WARNING)
+                    }
                     crate::app::state::AppStatus::Error(_) => ("Error", ModernTheme::ERROR),
                     _ => ("Active", ModernTheme::ACCENT_PRIMARY),
                 };
@@ -317,28 +316,35 @@ impl CopyDvdApp {
                 ui.horizontal(|ui| {
                     ui.add_space(Spacing::MD);
                     ui.add_space(Spacing::SM);
-                    ui.label(egui::RichText::new(status_text)
-                        .color(status_color)
-                        .size(12.0));
+                    ui.label(
+                        egui::RichText::new(status_text)
+                            .color(status_color)
+                            .size(12.0),
+                    );
                 });
-                
+
                 if !self.ui_state.titles.is_empty() {
                     ui.add_space(Spacing::SM);
                     ui.horizontal(|ui| {
                         ui.add_space(Spacing::MD);
                         ui.add_space(Spacing::SM);
-                        ui.label(egui::RichText::new(format!("{} titles found", self.ui_state.titles.len()))
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "{} titles found",
+                                self.ui_state.titles.len()
+                            ))
                             .color(ModernTheme::TEXT_TERTIARY)
-                            .size(11.0));
+                            .size(11.0),
+                        );
                     });
                 }
             }
         });
     }
-    
+
     fn render_modern_header(&mut self, ui: &mut egui::Ui) {
         ui.add_space(Spacing::LG);
-        
+
         ui.horizontal(|ui| {
             // Page title based on active tab
             let (title, description) = match self.ui_state.active_tab {
@@ -348,17 +354,21 @@ impl CopyDvdApp {
                 Tab::HandBrake => ("HandBrake Manager", "Manage HandBrake installation"),
                 Tab::About => ("About", "Application information and credits"),
             };
-            
+
             ui.vertical(|ui| {
-                ui.label(egui::RichText::new(title)
-                    .size(24.0)
-                    .color(ModernTheme::TEXT_PRIMARY)
-                    .strong());
-                ui.label(egui::RichText::new(description)
-                    .size(14.0)
-                    .color(ModernTheme::TEXT_SECONDARY));
+                ui.label(
+                    egui::RichText::new(title)
+                        .size(24.0)
+                        .color(ModernTheme::TEXT_PRIMARY)
+                        .strong(),
+                );
+                ui.label(
+                    egui::RichText::new(description)
+                        .size(14.0)
+                        .color(ModernTheme::TEXT_SECONDARY),
+                );
             });
-            
+
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // Quick action button based on current tab
                 match self.ui_state.active_tab {
@@ -382,13 +392,16 @@ impl CopyDvdApp {
                 }
             });
         });
-        
+
         ui.add_space(Spacing::LG);
-        
+
         // Subtle divider
-        let rect = ui.allocate_space(egui::Vec2::new(ui.available_width(), 1.0)).1;
-        ui.painter().rect_filled(rect, egui::Rounding::ZERO, ModernTheme::BORDER_PRIMARY);
-        
+        let rect = ui
+            .allocate_space(egui::Vec2::new(ui.available_width(), 1.0))
+            .1;
+        ui.painter()
+            .rect_filled(rect, egui::Rounding::ZERO, ModernTheme::BORDER_PRIMARY);
+
         ui.add_space(Spacing::LG);
     }
 
@@ -455,7 +468,7 @@ impl eframe::App for CopyDvdApp {
                 .id_source("main_content_scroll")
                 .show(ui, |ui| {
                     ui.add_space(Spacing::MD);
-                    
+
                     // Content wrapper for consistent padding
                     ui.horizontal(|ui| {
                         ui.add_space(Spacing::LG);
@@ -615,7 +628,7 @@ impl eframe::App for CopyDvdApp {
                         });
                         ui.add_space(Spacing::LG); // Right padding
                     });
-                    
+
                     ui.add_space(Spacing::XL); // Bottom spacing
                 });
         });
