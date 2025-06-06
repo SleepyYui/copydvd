@@ -1,57 +1,64 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <!-- Blue gradient for the DVD disc -->
+    <!-- Vibrant purple gradient for the DVD disc -->
     <radialGradient id="dvdGradient" cx="50%" cy="30%" r="70%">
-      <stop offset="0%" style="stop-color:#64B5F6;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#2196F3;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#1976D2;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#C084FC;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#8B5CF6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7C3AED;stop-opacity:1" />
     </radialGradient>
     
     <!-- Gradient for the center hole -->
     <radialGradient id="holeGradient" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" style="stop-color:#424242;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#212121;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#334155;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1E293B;stop-opacity:1" />
     </radialGradient>
     
     <!-- Eye gradient -->
     <radialGradient id="eyeGradient" cx="30%" cy="30%" r="70%">
       <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#F5F5F5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F1F5F9;stop-opacity:1" />
     </radialGradient>
     
     <!-- Pupil gradient -->
     <radialGradient id="pupilGradient" cx="30%" cy="30%" r="70%">
-      <stop offset="0%" style="stop-color:#212121;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#424242;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#1E293B;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#334155;stop-opacity:1" />
     </radialGradient>
   </defs>
   
   <!-- Main DVD disc -->
-  <circle cx="256" cy="256" r="200" fill="url(#dvdGradient)" stroke="#1565C0" stroke-width="6"/>
+  <circle cx="256" cy="256" r="200" fill="url(#dvdGradient)" stroke="#6D28D9" stroke-width="8"/>
   
   <!-- DVD center hole -->
   <circle cx="256" cy="256" r="50" fill="url(#holeGradient)"/>
   
-  <!-- Data track rings -->
-  <circle cx="256" cy="256" r="170" fill="none" stroke="#1E88E5" stroke-width="2" opacity="0.4"/>
-  <circle cx="256" cy="256" r="140" fill="none" stroke="#1E88E5" stroke-width="1" opacity="0.3"/>
-  <circle cx="256" cy="256" r="110" fill="none" stroke="#1E88E5" stroke-width="1" opacity="0.3"/>
-  <circle cx="256" cy="256" r="80" fill="none" stroke="#1E88E5" stroke-width="1" opacity="0.3"/>
+  <!-- Data track rings with purple theme -->
+  <circle cx="256" cy="256" r="170" fill="none" stroke="#A855F7" stroke-width="2" opacity="0.5"/>
+  <circle cx="256" cy="256" r="140" fill="none" stroke="#A855F7" stroke-width="1" opacity="0.4"/>
+  <circle cx="256" cy="256" r="110" fill="none" stroke="#A855F7" stroke-width="1" opacity="0.4"/>
+  <circle cx="256" cy="256" r="80" fill="none" stroke="#A855F7" stroke-width="1" opacity="0.4"/>
   
-  <!-- Left googly eye (larger) -->
-  <circle cx="200" cy="200" r="40" fill="url(#eyeGradient)" stroke="#BDBDBD" stroke-width="3"/>
-  <circle cx="205" cy="205" r="20" fill="url(#pupilGradient)"/>
-  <circle cx="208" cy="200" r="8" fill="white" opacity="0.9"/>
+  <!-- Left googly eye (larger, more expressive) -->
+  <circle cx="190" cy="195" r="45" fill="url(#eyeGradient)" stroke="#CBD5E1" stroke-width="4"/>
+  <circle cx="198" cy="205" r="22" fill="url(#pupilGradient)"/>
+  <circle cx="202" cy="200" r="10" fill="white" opacity="0.95"/>
+  <circle cx="204" cy="198" r="4" fill="white"/>
   
-  <!-- Right googly eye (smaller for asymmetry) -->
-  <circle cx="320" cy="180" r="32" fill="url(#eyeGradient)" stroke="#BDBDBD" stroke-width="3"/>
-  <circle cx="325" cy="185" r="16" fill="url(#pupilGradient)"/>
-  <circle cx="327" cy="182" r="6" fill="white" opacity="0.9"/>
+  <!-- Right googly eye (smaller, asymmetric for character) -->
+  <circle cx="330" cy="175" r="35" fill="url(#eyeGradient)" stroke="#CBD5E1" stroke-width="4"/>
+  <circle cx="335" cy="182" r="18" fill="url(#pupilGradient)"/>
+  <circle cx="338" cy="179" r="8" fill="white" opacity="0.95"/>
+  <circle cx="340" cy="177" r="3" fill="white"/>
   
-  <!-- Simple smile (optional) -->
-  <path d="M 220 300 Q 256 330 292 300" fill="none" stroke="#1565C0" stroke-width="4" stroke-linecap="round"/>
+  <!-- Happy smile -->
+  <path d="M 210 310 Q 256 345 302 310" fill="none" stroke="#6D28D9" stroke-width="6" stroke-linecap="round"/>
   
   <!-- Subtle shine effect on the disc -->
-  <ellipse cx="180" cy="160" rx="30" ry="60" fill="white" opacity="0.15" transform="rotate(-30 180 160)"/>
+  <ellipse cx="170" cy="150" rx="35" ry="70" fill="white" opacity="0.2" transform="rotate(-30 170 150)"/>
+  
+  <!-- Additional small sparkle effects -->
+  <circle cx="350" cy="120" r="3" fill="white" opacity="0.8"/>
+  <circle cx="120" cy="350" r="2" fill="white" opacity="0.7"/>
+  <circle cx="380" cy="380" r="2" fill="white" opacity="0.6"/>
 </svg>

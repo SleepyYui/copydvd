@@ -1,30 +1,37 @@
 use crate::config::Config;
-use crate::gui::icons::svg_icon;
 use crate::gui::notifications::{notify_error, notify_info, notify_success};
 use crate::gui::state::UiState;
 use crate::gui::theme::{
-    full_width_button, grouped_section, status_indicator, styled_panel, Layout, StatusType,
+    modern_button, modern_card, modern_input, section_header, status_indicator,
+    ButtonVariant, ModernTheme, Spacing, StatusType,
 };
 use std::sync::{Arc, Mutex};
 
 pub fn render_server_tab(ui: &mut egui::Ui, ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
-    ui.heading("Server Configuration");
-    ui.separator();
+    // Header
+    ui.heading(
+        egui::RichText::new("Server Configuration")
+            .size(24.0)
+            .color(ModernTheme::TEXT_PRIMARY)
+            .strong(),
+    );
+
+    ui.add_space(Spacing::XL);
 
     // Connection Settings
     render_connection_settings(ui, ui_state);
 
-    ui.add_space(Layout::SPACING_LARGE);
+    ui.add_space(Spacing::XL);
 
     // Upload Settings
     render_upload_settings(ui, ui_state);
 
-    ui.add_space(Layout::SPACING_LARGE);
+    ui.add_space(Spacing::XL);
 
     // Transfer Options
     render_transfer_options(ui, ui_state);
 
-    ui.add_space(Layout::SPACING_LARGE);
+    ui.add_space(Spacing::XL);
 
     // Configuration Actions
     render_server_actions(ui, ui_state, config);
@@ -94,132 +101,144 @@ async fn test_connection(
 }
 
 fn render_connection_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
-    styled_panel(ui, |ui| {
-        grouped_section(ui, "Connection Settings", |ui| {
-            ui.horizontal(|ui| {
-                ui.label("Server host:");
-                ui.add_sized(
-                    [200.0, 20.0],
-                    egui::TextEdit::singleline(&mut ui_state.config_temp.server_host),
-                );
-            });
+    modern_card(ui, |ui| {
+        section_header(ui, "Connection Settings", None::<fn(&mut egui::Ui)>);
 
-            ui.horizontal(|ui| {
-                ui.label("Username:");
-                ui.add_sized(
-                    [200.0, 20.0],
-                    egui::TextEdit::singleline(&mut ui_state.config_temp.server_username),
-                );
-            });
+        // Server host input
+        ui.label(egui::RichText::new("Server host").color(ModernTheme::TEXT_SECONDARY));
+        ui.add_space(Spacing::XS);
+        modern_input(ui, &mut ui_state.config_temp.server_host, "example.com");
+        ui.add_space(Spacing::MD);
 
-            ui.horizontal(|ui| {
-                ui.label("Password:");
-                ui.add_sized(
-                    [200.0, 20.0],
-                    egui::TextEdit::singleline(&mut ui_state.config_temp.server_password),
-                );
-            });
+        // Username input
+        ui.label(egui::RichText::new("Username").color(ModernTheme::TEXT_SECONDARY));
+        ui.add_space(Spacing::XS);
+        modern_input(
+            ui,
+            &mut ui_state.config_temp.server_username,
+            "your-username",
+        );
+        ui.add_space(Spacing::MD);
 
-            ui.horizontal(|ui| {
-                ui.label("Remote path:");
-                ui.add_sized(
-                    [200.0, 20.0],
-                    egui::TextEdit::singleline(&mut ui_state.config_temp.server_path),
-                );
-            });
+        // Password input
+        ui.label(egui::RichText::new("Password").color(ModernTheme::TEXT_SECONDARY));
+        ui.add_space(Spacing::XS);
+        let mut password = ui_state.config_temp.server_password.clone();
+        let password_edit = egui::TextEdit::singleline(&mut password)
+            .password(true)
+            .hint_text(egui::RichText::new("your-password").color(ModernTheme::TEXT_TERTIARY))
+            .desired_width(ui.available_width())
+            .margin(egui::Vec2::new(Spacing::MD, Spacing::SM));
+        ui.add(password_edit);
+        ui_state.config_temp.server_password = password;
+        ui.add_space(Spacing::MD);
 
-            ui.add_space(Layout::SPACING);
+        // Remote path input
+        ui.label(egui::RichText::new("Remote path").color(ModernTheme::TEXT_SECONDARY));
+        ui.add_space(Spacing::XS);
+        modern_input(
+            ui,
+            &mut ui_state.config_temp.server_path,
+            "/path/to/destination",
+        );
+        ui.add_space(Spacing::LG);
 
-            ui.horizontal(|ui| {
-                svg_icon(ui, "search", 16.0, egui::Color32::from_rgb(100, 150, 255));
-                if full_width_button(ui, "Test Connection").clicked() {
-                    test_server_connection(ui_state);
-                }
-            });
-        });
+        // Test connection button
+        if modern_button(ui, "Test Connection", ButtonVariant::Primary).clicked() {
+            test_server_connection(ui_state);
+        }
     });
 }
 
 fn render_upload_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
-    styled_panel(ui, |ui| {
-        grouped_section(ui, "Upload Settings", |ui| {
-            ui.checkbox(
-                &mut ui_state.config_temp.compress_transfer,
-                "Compress files during transfer",
-            );
-            ui.checkbox(
-                &mut ui_state.config_temp.resume_uploads,
-                "Resume interrupted uploads",
-            );
-            ui.checkbox(
-                &mut ui_state.config_temp.preserve_permissions,
-                "Preserve file permissions",
-            );
-            ui.checkbox(
-                &mut ui_state.config_temp.delete_after_upload,
-                "Delete local files after successful upload",
-            );
-        });
+    modern_card(ui, |ui| {
+        section_header(ui, "Upload Settings", None::<fn(&mut egui::Ui)>);
+
+        // Compress files during transfer
+        ui.checkbox(
+            &mut ui_state.config_temp.compress_transfer,
+            egui::RichText::new("Compress files during transfer")
+                .color(ModernTheme::TEXT_PRIMARY),
+        );
+        ui.add_space(Spacing::SM);
+
+        // Resume interrupted uploads
+        ui.checkbox(
+            &mut ui_state.config_temp.resume_uploads,
+            egui::RichText::new("Resume interrupted uploads").color(ModernTheme::TEXT_PRIMARY),
+        );
+        ui.add_space(Spacing::SM);
+
+        // Preserve file permissions
+        ui.checkbox(
+            &mut ui_state.config_temp.preserve_permissions,
+            egui::RichText::new("Preserve file permissions").color(ModernTheme::TEXT_PRIMARY),
+        );
+        ui.add_space(Spacing::SM);
+
+        // Delete local files after successful upload
+        ui.checkbox(
+            &mut ui_state.config_temp.delete_after_upload,
+            egui::RichText::new("Delete local files after successful upload")
+                .color(ModernTheme::TEXT_PRIMARY),
+        );
+        ui.add_space(Spacing::SM);
     });
 }
 
 fn render_transfer_options(ui: &mut egui::Ui, ui_state: &mut UiState) {
-    styled_panel(ui, |ui| {
-        grouped_section(ui, "Transfer Status", |ui| {
-            if ui_state.upload_to_server {
-                status_indicator(ui, "Upload enabled", StatusType::Success);
-            } else {
-                status_indicator(ui, "Upload disabled", StatusType::Info);
-            }
+    modern_card(ui, |ui| {
+        section_header(ui, "Transfer Status", None::<fn(&mut egui::Ui)>);
 
-            ui.add_space(Layout::SPACING);
+        if ui_state.upload_to_server {
+            status_indicator(ui, "Upload enabled", StatusType::Success);
+        } else {
+            status_indicator(ui, "Upload disabled", StatusType::Info);
+        }
 
-            ui.horizontal(|ui| {
-                ui.checkbox(
-                    &mut ui_state.upload_to_server,
-                    "Enable automatic upload after ripping",
-                );
-            });
+        ui.add_space(Spacing::MD);
 
-            if ui_state.upload_to_server && !ui_state.config_temp.server_host.is_empty() {
-                ui.add_space(Layout::SPACING);
-                ui.label(format!(
-                    "Files will be uploaded to: {}",
+        ui.checkbox(
+            &mut ui_state.upload_to_server,
+            egui::RichText::new("Enable automatic upload after ripping")
+                .color(ModernTheme::TEXT_PRIMARY),
+        );
+
+        if ui_state.upload_to_server && !ui_state.config_temp.server_host.is_empty() {
+            ui.add_space(Spacing::MD);
+            ui.label(
+                egui::RichText::new(format!(
+                    "→ Files will be uploaded to: {}",
                     ui_state.config_temp.server_host
-                ));
-            }
-        });
+                ))
+                .color(ModernTheme::TEXT_SECONDARY),
+            );
+        }
     });
 }
 
 fn render_server_actions(ui: &mut egui::Ui, ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
-    styled_panel(ui, |ui| {
-        grouped_section(ui, "Actions", |ui| {
-            ui.horizontal(|ui| {
-                svg_icon(ui, "save", 16.0, egui::Color32::from_rgb(100, 200, 100));
-                if full_width_button(ui, "Save Server Settings").clicked() {
-                    save_server_config(ui_state, config.clone());
-                }
-            });
+    modern_card(ui, |ui| {
+        section_header(ui, "Actions", None::<fn(&mut egui::Ui)>);
 
-            ui.add_space(Layout::SPACING_SMALL);
+        // Save settings button
+        if modern_button(ui, "Save Server Settings", ButtonVariant::Success).clicked() {
+            save_server_config(ui_state, config.clone());
+        }
 
-            ui.horizontal(|ui| {
-                svg_icon(ui, "folder", 16.0, egui::Color32::from_rgb(100, 150, 255));
-                if full_width_button(ui, "Load Server Settings").clicked() {
-                    load_server_config(ui_state, config.clone());
-                }
-            });
+        ui.add_space(Spacing::MD);
 
-            ui.add_space(Layout::SPACING);
+        // Load settings button
+        if modern_button(ui, "Load Server Settings", ButtonVariant::Secondary).clicked() {
+            load_server_config(ui_state, config.clone());
+        }
 
-            ui.horizontal(|ui| {
-                svg_icon(ui, "cross", 16.0, egui::Color32::from_rgb(255, 100, 100));
-                if full_width_button(ui, "Clear Settings").clicked() {
-                    clear_server_settings(ui_state);
-                }
-            });
-        });
+        ui.add_space(Spacing::MD);
+
+        // Clear settings button
+        if modern_button(ui, "Clear Settings", ButtonVariant::Warning).clicked() {
+            clear_server_settings(ui_state);
+        }
     });
 }
 

@@ -5,6 +5,9 @@ on:
     - cron: '0 0 * * 1'  # Weekly on Monday
   workflow_dispatch:
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   update-dependencies:
     name: Update Dependencies
@@ -14,51 +17,93 @@ jobs:
       pull-requests: write
     
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
       
-      - name: Install dependencies
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      
+      - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev
+          sudo apt-get install -y pkg-config libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglib2.0-dev libgtk-3-dev
       
       - name: Install cargo-edit
-        run: cargo install cargo-edit
+        run: cargo install cargo-edit --locked
       
       - name: Update dependencies
         run: |
+          # Update Cargo.lock
           cargo update
-          cargo upgrade --workspace
+          
+          # Upgrade to latest compatible versions
+          cargo upgrade --workspace --verbose
       
-      - name: Test updated dependencies
+      - name: Validate updated dependencies
         run: |
-          cargo build --all-features
-          cargo test --all-features
+          # Check formatting
+          cargo fmt --all -- --check
+          
+          # Check clippy
+          cargo clippy --all-targets --all-features -- -D warnings
+          
+          # Build and test
+          cargo build --all-features --verbose
+          cargo test --all-features --verbose
+          
+          # Build release to ensure it still works
+          cargo build --release --all-features --verbose
+      
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet Cargo.toml Cargo.lock; then
+            echo "No dependency updates available"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "Dependencies updated"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
       
       - name: Create Pull Request
+        if: steps.changes.outputs.has_changes == 'true'
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: 'chore: update dependencies'
           title: 'chore: automated dependency updates'
           body: |
-            ## Automated Dependency Updates
+            ## 🔄 Automated Dependency Updates
             
             This PR contains automated updates to project dependencies.
             
-            ### Changes
-            - Updated Cargo dependencies to latest compatible versions
-            - All tests pass with updated dependencies
-            
-            ### Verification
-            - [x] Build successful
-            - [x] Tests passing
+            ### ✅ Validation Status
+            - [x] Formatting check passed
+            - [x] Clippy lints passed  
+            - [x] Debug build successful
+            - [x] Release build successful
+            - [x] All tests passing
             - [x] All features compile
+            
+            ### 📋 Review Checklist
+            - [ ] Review dependency changes in `Cargo.toml` and `Cargo.lock`
+            - [ ] Check for any breaking changes in updated dependencies
+            - [ ] Verify CI pipeline passes completely
+            
+            ### 🤖 Automated Process
+            This PR was automatically created by the dependency update workflow.
+            All builds and tests passed with the updated dependencies.
             
             **Note**: Please review the changes before merging.
           branch: dependencies/automated-updates
           delete-branch: true
+          labels: |
+            dependencies
+            automated

@@ -170,11 +170,11 @@ fn render_title_selection(ui: &mut egui::Ui, ui_state: &mut UiState) {
             ui.add_space(Layout::SPACING_SMALL);
 
             let selected_count = ui_state.selected_title_count();
-            if full_width_button(ui, "Start Ripping").clicked() && selected_count > 0 {
+            if full_width_button(ui, "Start Copying").clicked() && selected_count > 0 {
                 if ui_state.output_path.is_empty() {
                     notify_error("Please select an output directory first");
                 } else {
-                    notify_success(&format!("Starting to rip {} titles", selected_count));
+                    notify_success(&format!("Starting to copy {} titles", selected_count));
 
                     // Get selected title indices
                     let selected_indices: Vec<usize> = ui_state

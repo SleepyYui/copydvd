@@ -1460,7 +1460,7 @@ impl HandBrakeManager {
             // Extract version number from strings like "HandBrake 1.9.2"
             if let Some(captures) = regex::Regex::new(r"HandBrake\s+(\d+\.\d+\.\d+)")
                 .ok()
-                .and_then(|re| re.captures(v)) 
+                .and_then(|re| re.captures(v))
             {
                 captures.get(1).map(|m| m.as_str().to_string())
             } else {

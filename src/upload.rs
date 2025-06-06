@@ -40,7 +40,6 @@ pub async fn upload_file(task: &UploadTask) -> Result<()> {
 
 /// Upload methods
 enum UploadMethod {
-    #[allow(dead_code)]
     Rsync,
     Scp,
     Sftp,

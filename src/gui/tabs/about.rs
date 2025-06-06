@@ -1,80 +1,148 @@
-use crate::gui::icons::svg_icon;
 use crate::gui::state::UiState;
-use crate::gui::theme::{grouped_section, styled_panel, Layout};
+use crate::gui::theme::{
+    modern_card, section_header, ModernTheme, Spacing,
+};
 
 pub fn render_about_tab(ui: &mut egui::Ui, _ui_state: &mut UiState) {
-    ui.horizontal(|ui| {
-        svg_icon(ui, "heart", 24.0, egui::Color32::from_rgb(255, 100, 150));
-        ui.heading("About Copy DVD");
-    });
-    ui.separator();
+    // Header
+    ui.heading(
+        egui::RichText::new("About CopyDVD")
+            .size(24.0)
+            .color(ModernTheme::TEXT_PRIMARY)
+            .strong(),
+    );
+
+    ui.add_space(Spacing::XL);
 
     // Application Information
-    styled_panel(ui, |ui| {
-        grouped_section(ui, "Application Information", |ui| {
-            ui.label("Copy DVD - Simple DVD Copying Tool");
-            ui.label(format!("Version: {}", env!("CARGO_PKG_VERSION")));
-            ui.label("Built with Rust and egui");
+    modern_card(ui, |ui| {
+        section_header(ui, "Application Information", None::<fn(&mut egui::Ui)>);
 
-            ui.add_space(Layout::SPACING);
+        ui.label(
+            egui::RichText::new("CopyDVD - Simple DVD Copy Tool")
+                .color(ModernTheme::TEXT_PRIMARY),
+        );
+        ui.add_space(Spacing::SM);
 
-            ui.label("A simple, functional tool for copying DVDs to digital formats.");
-            ui.label("Designed with simplicity and ease of use in mind.");
-        });
+        ui.label(
+            egui::RichText::new(&format!("Version: {}", env!("CARGO_PKG_VERSION")))
+                .color(ModernTheme::TEXT_PRIMARY),
+        );
+        ui.add_space(Spacing::SM);
+
+        ui.label(
+            egui::RichText::new("Built with Rust and egui")
+                .color(ModernTheme::TEXT_PRIMARY),
+        );
+
+        ui.add_space(Spacing::MD);
+
+        ui.label(
+            egui::RichText::new("A simple, functional tool for copying DVDs to digital formats.")
+                .color(ModernTheme::TEXT_SECONDARY),
+        );
+        ui.label(
+            egui::RichText::new("Designed with simplicity and ease of use in mind.")
+                .color(ModernTheme::TEXT_SECONDARY),
+        );
     });
 
-    ui.add_space(Layout::SPACING_LARGE);
+    ui.add_space(Spacing::XL);
 
     // System Information
-    styled_panel(ui, |ui| {
-        grouped_section(ui, "System Information", |ui| {
-            ui.horizontal(|ui| {
-                ui.label("Operating System:");
-                ui.label(std::env::consts::OS);
-            });
+    modern_card(ui, |ui| {
+        section_header(ui, "System Information", None::<fn(&mut egui::Ui)>);
 
-            ui.horizontal(|ui| {
-                ui.label("Architecture:");
-                ui.label(std::env::consts::ARCH);
-            });
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("Operating System:").color(ModernTheme::TEXT_SECONDARY));
+            ui.add_space(Spacing::MD);
+            ui.label(
+                egui::RichText::new(std::env::consts::OS)
+                    .color(ModernTheme::TEXT_PRIMARY)
+                    .strong(),
+            );
+        });
+        ui.add_space(Spacing::SM);
 
-            ui.horizontal(|ui| {
-                ui.label("GUI Framework:");
-                ui.label("egui");
-            });
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("Architecture:").color(ModernTheme::TEXT_SECONDARY));
+            ui.add_space(Spacing::MD);
+            ui.label(
+                egui::RichText::new(std::env::consts::ARCH)
+                    .color(ModernTheme::TEXT_PRIMARY)
+                    .strong(),
+            );
+        });
+        ui.add_space(Spacing::SM);
+
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("GUI Framework:").color(ModernTheme::TEXT_SECONDARY));
+            ui.add_space(Spacing::MD);
+            ui.label(
+                egui::RichText::new("egui")
+                    .color(ModernTheme::TEXT_PRIMARY)
+                    .strong(),
+            );
         });
     });
 
-    ui.add_space(Layout::SPACING_LARGE);
+    ui.add_space(Spacing::XL);
 
     // Features
-    styled_panel(ui, |ui| {
-        grouped_section(ui, "Features", |ui| {
-            ui.label("- DVD detection and scanning");
-            ui.label("- Title and chapter selection");
-            ui.label("- Multiple output formats");
-            ui.label("- HandBrake integration");
-            ui.label("- Server upload support");
-            ui.label("- Simple, clean interface");
-        });
+    modern_card(ui, |ui| {
+        section_header(ui, "Features", None::<fn(&mut egui::Ui)>);
+
+        let features = [
+            ("search", "DVD detection and scanning"),
+            ("menu", "Title and chapter selection"),
+            ("save", "Multiple output formats"),
+            ("wrench", "HandBrake integration"),
+            ("upload", "Server upload support"),
+            ("heart", "Simple, clean interface"),
+        ];
+
+        for (_icon, text) in &features {
+            ui.label(
+                egui::RichText::new(*text)
+                    .color(ModernTheme::TEXT_PRIMARY),
+            );
+            ui.add_space(Spacing::SM);
+        }
     });
 
-    ui.add_space(Layout::SPACING_LARGE);
+    ui.add_space(Spacing::XL);
 
     // Support
-    styled_panel(ui, |ui| {
-        grouped_section(ui, "Support & Links", |ui| {
-            if ui.link("HandBrake Official Website").clicked() {
-                let _ = open::that("https://handbrake.fr/");
-            }
+    modern_card(ui, |ui| {
+        section_header(ui, "Support & Links", None::<fn(&mut egui::Ui)>);
 
-            if ui.link("Rust Programming Language").clicked() {
-                let _ = open::that("https://www.rust-lang.org/");
-            }
+        if ui
+            .link(
+                egui::RichText::new("HandBrake Official Website")
+                    .color(ModernTheme::ACCENT_PRIMARY),
+            )
+            .clicked()
+        {
+            let _ = open::that("https://handbrake.fr/");
+        }
+        ui.add_space(Spacing::SM);
 
-            if ui.link("egui GUI Framework").clicked() {
-                let _ = open::that("https://github.com/emilk/egui");
-            }
-        });
+        if ui
+            .link(
+                egui::RichText::new("Rust Programming Language")
+                    .color(ModernTheme::ACCENT_PRIMARY),
+            )
+            .clicked()
+        {
+            let _ = open::that("https://www.rust-lang.org/");
+        }
+        ui.add_space(Spacing::SM);
+
+        if ui
+            .link(egui::RichText::new("egui GUI Framework").color(ModernTheme::ACCENT_PRIMARY))
+            .clicked()
+        {
+            let _ = open::that("https://github.com/emilk/egui");
+        }
     });
 }

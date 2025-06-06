@@ -1,14 +1,12 @@
 use crate::app::state::AppState;
 use crate::config::Config;
-use crate::gui::icons::svg_icon;
 use crate::gui::state::{HandBrakeOperationStatus, Tab, UiState, UpdateStatus};
 use crate::gui::tabs::*;
-use crate::gui::theme::apply_theme;
+use crate::gui::theme::{apply_modern_theme, nav_item, ModernTheme, Spacing};
 use crate::gui::utils::updates::{auto_check_for_updates, UpdateCheckResult};
 use crate::handbrake_manager::HandBrakeManager;
 use std::time::{Duration, Instant};
 
-use egui::{Align, Layout, RichText};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 
@@ -38,10 +36,10 @@ pub fn run() -> eframe::Result<()> {
     };
 
     eframe::run_native(
-        "Copy DVD",
+        "CopyDVD",
         options,
         Box::new(|cc| {
-            apply_theme(&cc.egui_ctx);
+            apply_modern_theme(&cc.egui_ctx);
             cc.egui_ctx.set_pixels_per_point(1.0);
             Ok(Box::new(CopyDvdApp::new(cc)))
         }),
@@ -261,52 +259,137 @@ impl CopyDvdApp {
         }
     }
 
-    fn render_header(&mut self, ui: &mut egui::Ui) {
+
+    fn render_sidebar(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(Spacing::LG);
+        
+        // App branding section
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Copy DVD").strong().size(16.0));
+            ui.add_space(Spacing::MD);
+            ui.add_space(Spacing::MD);
+            ui.vertical(|ui| {
+                ui.label(egui::RichText::new("CopyDVD")
+                    .size(18.0)
+                    .color(ModernTheme::TEXT_PRIMARY)
+                    .strong());
+                ui.label(egui::RichText::new("Media Tool")
+                    .size(12.0)
+                    .color(ModernTheme::TEXT_TERTIARY));
+            });
+        });
+        
+        ui.add_space(Spacing::XL);
+        
+        // Navigation items
+        ui.add_space(Spacing::SM);
+        for tab in Tab::all() {
+            let is_active = self.ui_state.active_tab == tab;
+            
+            if nav_item(
+                ui,
+                tab.name(),
+                is_active,
+            )
+            .clicked()
+            {
+                self.ui_state.active_tab = tab;
+            }
+            
+            ui.add_space(Spacing::XS);
+        }
+        
+        ui.add_space(Spacing::XL);
+        
+        // Status section at bottom
+        ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+            ui.add_space(Spacing::LG);
+            
+            // Current status
+            if let Ok(state) = self.app_state.try_lock() {
+                let (status_text, status_color) = match &state.status {
+                    crate::app::state::AppStatus::Idle => ("Ready", ModernTheme::SUCCESS),
+                    crate::app::state::AppStatus::Scanning => ("Scanning", ModernTheme::INFO),
+                    crate::app::state::AppStatus::Ripping { .. } => ("Processing", ModernTheme::WARNING),
+                    crate::app::state::AppStatus::Error(_) => ("Error", ModernTheme::ERROR),
+                    _ => ("Active", ModernTheme::ACCENT_PRIMARY),
+                };
 
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if let Ok(state) = self.app_state.try_lock() {
-                    let status_text = match &state.status {
-                        crate::app::state::AppStatus::Idle => "Ready",
-                        crate::app::state::AppStatus::Scanning => "Scanning",
-                        crate::app::state::AppStatus::Ripping { .. } => "Processing",
-                        crate::app::state::AppStatus::Error(_) => "Error",
-                        _ => "Active",
-                    };
-
-                    ui.label(status_text);
-
-                    if !self.ui_state.titles.is_empty() {
-                        ui.label(format!("{} titles", self.ui_state.titles.len()));
+                ui.horizontal(|ui| {
+                    ui.add_space(Spacing::MD);
+                    ui.add_space(Spacing::SM);
+                    ui.label(egui::RichText::new(status_text)
+                        .color(status_color)
+                        .size(12.0));
+                });
+                
+                if !self.ui_state.titles.is_empty() {
+                    ui.add_space(Spacing::SM);
+                    ui.horizontal(|ui| {
+                        ui.add_space(Spacing::MD);
+                        ui.add_space(Spacing::SM);
+                        ui.label(egui::RichText::new(format!("{} titles found", self.ui_state.titles.len()))
+                            .color(ModernTheme::TEXT_TERTIARY)
+                            .size(11.0));
+                    });
+                }
+            }
+        });
+    }
+    
+    fn render_modern_header(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(Spacing::LG);
+        
+        ui.horizontal(|ui| {
+            // Page title based on active tab
+            let (title, description) = match self.ui_state.active_tab {
+                Tab::Main => ("DVD Copy", "Scan and copy your DVDs"),
+                Tab::Config => ("Configuration", "Adjust encoding and output settings"),
+                Tab::Server => ("Server Setup", "Configure remote upload settings"),
+                Tab::HandBrake => ("HandBrake Manager", "Manage HandBrake installation"),
+                Tab::About => ("About", "Application information and credits"),
+            };
+            
+            ui.vertical(|ui| {
+                ui.label(egui::RichText::new(title)
+                    .size(24.0)
+                    .color(ModernTheme::TEXT_PRIMARY)
+                    .strong());
+                ui.label(egui::RichText::new(description)
+                    .size(14.0)
+                    .color(ModernTheme::TEXT_SECONDARY));
+            });
+            
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                // Quick action button based on current tab
+                match self.ui_state.active_tab {
+                    Tab::Main => {
+                        let button = egui::Button::new("Quick Scan")
+                            .fill(ModernTheme::ACCENT_PRIMARY)
+                            .rounding(egui::Rounding::same(6.0));
+                        if ui.add_sized([100.0, 28.0], button).clicked() {
+                            self.trigger_dvd_scan();
+                        }
                     }
+                    Tab::Config => {
+                        let button = egui::Button::new("Save Config")
+                            .fill(ModernTheme::SUCCESS)
+                            .rounding(egui::Rounding::same(6.0));
+                        if ui.add_sized([100.0, 28.0], button).clicked() {
+                            self.save_all_configs();
+                        }
+                    }
+                    _ => {}
                 }
             });
         });
-        ui.separator();
-    }
-
-    fn render_navigation_tabs(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            for tab in Tab::all() {
-                let is_active = self.ui_state.active_tab == tab;
-
-                ui.horizontal(|ui| {
-                    // Add icon before tab name
-                    svg_icon(ui, tab.icon(), 16.0, 
-                        if is_active { 
-                            egui::Color32::from_rgb(100, 200, 255) 
-                        } else { 
-                            egui::Color32::from_rgb(150, 150, 150) 
-                        });
-                    
-                    if ui.selectable_label(is_active, tab.name()).clicked() {
-                        self.ui_state.active_tab = tab;
-                    }
-                });
-            }
-        });
-        ui.separator();
+        
+        ui.add_space(Spacing::LG);
+        
+        // Subtle divider
+        let rect = ui.allocate_space(egui::Vec2::new(ui.available_width(), 1.0)).1;
+        ui.painter().rect_filled(rect, egui::Rounding::ZERO, ModernTheme::BORDER_PRIMARY);
+        
+        ui.add_space(Spacing::LG);
     }
 
     fn trigger_dvd_scan(&mut self) {
@@ -345,19 +428,38 @@ impl eframe::App for CopyDvdApp {
         self.check_for_update_results();
         self.update_status(ctx);
 
-        // Main application layout
+        // Modern sidebar + main content layout
+        egui::SidePanel::left("navigation_sidebar")
+            .resizable(false)
+            .min_width(260.0)
+            .max_width(260.0)
+            .frame(egui::Frame {
+                fill: ModernTheme::BACKGROUND_SECONDARY,
+                stroke: egui::Stroke::new(1.0, ModernTheme::BORDER_PRIMARY),
+                inner_margin: egui::Margin::ZERO,
+                outer_margin: egui::Margin::ZERO,
+                rounding: egui::Rounding::ZERO,
+                shadow: egui::epaint::Shadow::NONE,
+            })
+            .show(ctx, |ui| {
+                self.render_sidebar(ui);
+            });
+
         egui::CentralPanel::default().show(ctx, |ui| {
-            // Header
-            self.render_header(ui);
+            // Header with app info
+            self.render_modern_header(ui);
 
-            // Simple navigation tabs
-            self.render_navigation_tabs(ui);
-
-            // Main content area
-            egui::ScrollArea::both()
-                .auto_shrink([false, false])
+            // Main content area with modern styling
+            egui::ScrollArea::vertical()
+                .auto_shrink(false)
                 .id_source("main_content_scroll")
                 .show(ui, |ui| {
+                    ui.add_space(Spacing::MD);
+                    
+                    // Content wrapper for consistent padding
+                    ui.horizontal(|ui| {
+                        ui.add_space(Spacing::LG);
+                        ui.vertical(|ui| {
                     // HandBrake status display at top (only show on HandBrake tab or within timeout)
                     let should_show_handbrake_status = match (&self.handbrake_status, self.ui_state.active_tab) {
                         // Always show on HandBrake tab
@@ -377,17 +479,11 @@ impl eframe::App for CopyDvdApp {
                         if let Some(handbrake_status) = &self.handbrake_status {
                             match handbrake_status {
                                 HandBrakeStatus::Verifying => {
-                                    ui.horizontal(|ui| {
-                                        svg_icon(ui, "search", 16.0, egui::Color32::from_rgb(255, 165, 0));
-                                        ui.colored_label(egui::Color32::from_rgb(255, 165, 0), " Verifying HandBrake installation...");
-                                    });
+                                    ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "Verifying HandBrake installation...");
                                     ui.separator();
                                 }
                                 HandBrakeStatus::Verified(path) => {
-                                    ui.horizontal(|ui| {
-                                        svg_icon(ui, "check", 16.0, egui::Color32::from_rgb(0, 150, 0));
-                                        ui.colored_label(egui::Color32::from_rgb(0, 150, 0), format!(" HandBrake verified: {}", path));
-                                    });
+                                    ui.colored_label(egui::Color32::from_rgb(0, 150, 0), format!("HandBrake verified: {}", path));
                                     ui.separator();
                                 }
                                 HandBrakeStatus::Error(error) => {
@@ -397,16 +493,10 @@ impl eframe::App for CopyDvdApp {
                                 let auto_fixes_attempted = error_clone.contains("Automatic security fixes were attempted");
 
                                 if auto_fixes_attempted {
-                                    ui.horizontal(|ui| {
-                                        svg_icon(ui, "lightning", 16.0, egui::Color32::from_rgb(255, 165, 0));
-                                        ui.colored_label(egui::Color32::from_rgb(255, 165, 0), " HandBrake Auto-Fix Attempted:");
-                                    });
+                                    ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "HandBrake Auto-Fix Attempted:");
                                     ui.label("The application automatically tried to resolve macOS security issues.");
                                 } else {
-                                    ui.horizontal(|ui| {
-                                        svg_icon(ui, "cross", 16.0, egui::Color32::from_rgb(200, 50, 50));
-                                        ui.colored_label(egui::Color32::from_rgb(200, 50, 50), " HandBrake Error:");
-                                    });
+                                    ui.colored_label(egui::Color32::from_rgb(200, 50, 50), "HandBrake Error:");
                                 }
                                 ui.separator();
 
@@ -480,19 +570,13 @@ impl eframe::App for CopyDvdApp {
                                 // Show helpful status message for auto-fixes
                                 if auto_fixes_attempted {
                                     ui.separator();
-                                    ui.horizontal(|ui| {
-                                        svg_icon(ui, "lightbulb", 16.0, egui::Color32::from_rgb(100, 150, 255));
-                                        ui.colored_label(egui::Color32::from_rgb(100, 150, 255), " What happened:");
-                                    });
+                                    ui.colored_label(egui::Color32::from_rgb(100, 150, 255), "What happened:");
                                     ui.label("- Removed quarantine attributes automatically");
                                     ui.label("- Set executable permissions");
                                     ui.label("- Attempted to open Security preferences");
                                     ui.label("- Triggered macOS security dialog");
                                     ui.add_space(5.0);
-                                    ui.horizontal(|ui| {
-                                        svg_icon(ui, "arrow-right", 16.0, egui::Color32::from_rgb(255, 200, 100));
-                                        ui.colored_label(egui::Color32::from_rgb(255, 200, 100), " Next steps:");
-                                    });
+                                    ui.colored_label(egui::Color32::from_rgb(255, 200, 100), "Next steps:");
                                     ui.label("1. Click 'Retry After Auto-Fix' above");
                                     ui.label("2. If still blocked, use 'Open Security Settings'");
                                     ui.label("3. Look for 'Allow Anyway' button in Security settings");
@@ -528,6 +612,11 @@ impl eframe::App for CopyDvdApp {
                             render_about_tab(ui, &mut self.ui_state);
                         }
                     }
+                        });
+                        ui.add_space(Spacing::LG); // Right padding
+                    });
+                    
+                    ui.add_space(Spacing::XL); // Bottom spacing
                 });
         });
 

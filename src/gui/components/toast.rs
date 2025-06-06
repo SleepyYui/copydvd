@@ -1,7 +1,7 @@
 use crate::gui::state::ui_state::{ToastNotification, ToastType};
-use crate::gui::icons::svg_icon;
 use egui::{Color32, Context, Pos2, Rect, RichText, Rounding, Stroke, Vec2};
 
+#[allow(dead_code, reason = "Future feature for in-app toast notifications")]
 pub fn render_toast_notifications(ctx: &Context, toasts: &mut Vec<ToastNotification>) {
     // Remove expired toasts
     toasts.retain(|toast| !toast.is_expired());
@@ -39,6 +39,7 @@ pub fn render_toast_notifications(ctx: &Context, toasts: &mut Vec<ToastNotificat
         });
 }
 
+#[allow(dead_code, reason = "Future feature for in-app toast notifications")]
 fn render_single_toast(ui: &mut egui::Ui, toast: &ToastNotification, rect: Rect) {
     let remaining_ratio = toast.remaining_ratio();
 
@@ -98,17 +99,8 @@ fn render_single_toast(ui: &mut egui::Ui, toast: &ToastNotification, rect: Rect)
         ui.horizontal(|ui| {
             ui.add_space(12.0);
 
-            // Icon
-            ui.vertical_centered(|ui| {
-                ui.add_space(8.0);
-                let icon_name = match toast.toast_type {
-                    ToastType::Success => "check",
-                    ToastType::Error => "cross",
-                    ToastType::Warning => "warning",
-                    ToastType::Info => "info",
-                };
-                svg_icon(ui, icon_name, 16.0, text_color);
-            });
+            // Icon placeholder (removed)
+            ui.add_space(8.0);
 
             ui.add_space(8.0);
 
@@ -143,22 +135,22 @@ fn render_single_toast(ui: &mut egui::Ui, toast: &ToastNotification, rect: Rect)
     });
 }
 
-#[allow(dead_code, reason = "Utility function for toast notifications")]
+#[allow(dead_code, reason = "Future feature for in-app toast notifications")]
 pub fn add_success_toast(toasts: &mut Vec<ToastNotification>, message: String) {
     toasts.push(ToastNotification::new(message, ToastType::Success));
 }
 
-#[allow(dead_code, reason = "Utility function for toast notifications")]
+#[allow(dead_code, reason = "Future feature for in-app toast notifications")]
 pub fn add_error_toast(toasts: &mut Vec<ToastNotification>, message: String) {
     toasts.push(ToastNotification::new(message, ToastType::Error));
 }
 
-#[allow(dead_code, reason = "Utility function for toast notifications")]
+#[allow(dead_code, reason = "Future feature for in-app toast notifications")]
 pub fn add_warning_toast(toasts: &mut Vec<ToastNotification>, message: String) {
     toasts.push(ToastNotification::new(message, ToastType::Warning));
 }
 
-#[allow(dead_code, reason = "Utility function for toast notifications")]
+#[allow(dead_code, reason = "Future feature for in-app toast notifications")]
 pub fn add_info_toast(toasts: &mut Vec<ToastNotification>, message: String) {
     toasts.push(ToastNotification::new(message, ToastType::Info));
 }

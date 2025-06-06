@@ -56,7 +56,6 @@ pub enum AppError {
     HandbrakeError(String),
 
     #[error("DVD operation error: {0}")]
-    #[allow(dead_code)]
     DvdError(String),
 }
 

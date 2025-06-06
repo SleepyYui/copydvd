@@ -89,11 +89,14 @@ pub fn get_available_dvd_drives() -> Vec<PathBuf> {
 
     #[cfg(windows)]
     {
+        use std::ffi::OsString;
+        use std::os::windows::ffi::OsStringExt;
+
         unsafe {
             let drive_mask = winapi::um::fileapi::GetLogicalDrives();
             for i in 0..26 {
                 if drive_mask & (1 << i) != 0 {
-                    let drive_letter = (b'A' + i) as char;
+                    let drive_letter = ('A' as u8 + i) as char;
                     let drive_path = format!("{}:\\", drive_letter);
 
                     let drive_type = winapi::um::fileapi::GetDriveTypeA(

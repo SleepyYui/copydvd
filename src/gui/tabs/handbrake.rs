@@ -1,5 +1,4 @@
 use crate::config::Config;
-use crate::gui::icons::svg_icon;
 use crate::gui::notifications::{notify_error, notify_info, notify_success};
 use crate::gui::state::ui_state::send_handbrake_ui_update;
 use crate::gui::state::{HandBrakeOperationStatus, UiState};
@@ -135,30 +134,21 @@ fn render_handbrake_status(ui: &mut egui::Ui, ui_state: &mut UiState) {
 
             ui.add_space(Layout::SPACING);
 
-            ui.horizontal(|ui| {
-                svg_icon(ui, "search", 16.0, egui::Color32::from_rgb(100, 150, 255));
-                if full_width_button(ui, "Check Status").clicked() {
-                    check_handbrake_availability(ui_state);
-                }
-            });
+            if full_width_button(ui, "Check Status").clicked() {
+                check_handbrake_availability(ui_state);
+            }
 
             ui.add_space(Layout::SPACING_SMALL);
 
-            ui.horizontal(|ui| {
-                svg_icon(ui, "download", 16.0, egui::Color32::from_rgb(100, 200, 100));
-                if full_width_button(ui, "Download HandBrake").clicked() {
-                    download_handbrake(ui_state);
-                }
-            });
+            if full_width_button(ui, "Download HandBrake").clicked() {
+                download_handbrake(ui_state);
+            }
 
             ui.add_space(Layout::SPACING_SMALL);
 
-            ui.horizontal(|ui| {
-                svg_icon(ui, "check", 16.0, egui::Color32::from_rgb(100, 200, 100));
-                if full_width_button(ui, "Verify Installation").clicked() {
-                    verify_handbrake(ui_state);
-                }
-            });
+            if full_width_button(ui, "Verify Installation").clicked() {
+                verify_handbrake(ui_state);
+            }
         });
     });
 }

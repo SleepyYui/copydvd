@@ -6,7 +6,7 @@ fn main() {
     // Extract version from Cargo.toml and make it available at build time
     let version = env::var("CARGO_PKG_VERSION").unwrap();
     println!("cargo:rustc-env=APP_VERSION={}", version);
-    
+
     // Only build icons on macOS
     if env::var("CARGO_CFG_TARGET_OS").unwrap() == "macos" {
         println!("cargo:rerun-if-changed=resources/icons/");

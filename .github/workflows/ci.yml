@@ -1,0 +1,304 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [v2, main]
+    tags: ['v*']
+  pull_request:
+    branches: [v2, main]
+  workflow_dispatch:
+    inputs:
+      force_release:
+        description: 'Force create release'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  # Job 1: Code Quality and Testing
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglib2.0-dev libgtk-3-dev
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Build (Debug)
+        run: cargo build --verbose --all-features
+
+      - name: Run tests
+        run: cargo test --verbose --all-features
+
+      - name: Build (Release)
+        run: cargo build --release --verbose --all-features
+
+  # Job 2: Cross-platform builds
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary: copydvd
+            use_cross: false
+            features: "--all-features"
+          
+          # Linux ARM64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            binary: copydvd
+            use_cross: true
+            features: "--no-default-features"  # CLI only for ARM
+          
+          # macOS Intel
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            binary: copydvd
+            use_cross: false
+            features: "--all-features"
+          
+          # macOS Apple Silicon
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            binary: copydvd
+            use_cross: false
+            features: "--all-features"
+          
+          # Windows x86_64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: copydvd.exe
+            use_cross: false
+            features: "--all-features"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+          cache-on-failure: true
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux' && !matrix.use_cross
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglib2.0-dev libgtk-3-dev
+
+      - name: Install cross
+        if: matrix.use_cross
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross --locked
+          
+      - name: Build binary
+        shell: bash
+        run: |
+          BUILD_CMD="cargo"
+          if [[ "${{ matrix.use_cross }}" == "true" ]]; then
+            BUILD_CMD="cross"
+          fi
+          
+          echo "Building with: $BUILD_CMD build --release --target ${{ matrix.target }} ${{ matrix.features }}"
+          $BUILD_CMD build --release --target ${{ matrix.target }} ${{ matrix.features }}
+          
+          # Verify binary exists
+          BINARY_PATH="target/${{ matrix.target }}/release/${{ matrix.binary }}"
+          if [[ ! -f "$BINARY_PATH" ]]; then
+            echo "❌ Binary not found at $BINARY_PATH"
+            exit 1
+          fi
+          
+          echo "✅ Binary built successfully: $BINARY_PATH"
+          ls -la "$BINARY_PATH"
+
+      - name: Strip binary (Unix)
+        if: runner.os != 'Windows'
+        run: strip target/${{ matrix.target }}/release/${{ matrix.binary }}
+
+      - name: Create App Bundle (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          if [[ -f "create_app_bundle.sh" ]]; then
+            chmod +x create_app_bundle.sh
+            ./create_app_bundle.sh ${{ matrix.target }}
+          else
+            echo "create_app_bundle.sh not found, skipping app bundle creation"
+          fi
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: copydvd-${{ matrix.target }}
+          path: |
+            target/${{ matrix.target }}/release/${{ matrix.binary }}
+            Copy DVD.app/**
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # Job 3: Create Release (only on tags or manual trigger)
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [quality, build]
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_release == 'true')
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release/
+          
+          # Process each artifact
+          for artifact_dir in artifacts/copydvd-*; do
+            if [[ -d "$artifact_dir" ]]; then
+              target=$(basename "$artifact_dir" | sed 's/copydvd-//')
+              echo "Processing $target..."
+              
+              # Find binary in artifact
+              binary_file=$(find "$artifact_dir" -name "copydvd*" -type f | head -1)
+              if [[ -n "$binary_file" ]]; then
+                # Determine file extension
+                if [[ "$target" == *"windows"* ]]; then
+                  ext=".exe"
+                else
+                  ext=""
+                fi
+                
+                # Copy and rename binary
+                cp "$binary_file" "release/copydvd-${target}${ext}"
+                echo "✅ Prepared: copydvd-${target}${ext}"
+              fi
+              
+              # Handle macOS app bundle
+              if [[ -d "$artifact_dir/Copy DVD.app" ]]; then
+                cd "$artifact_dir"
+                zip -r "../release/CopyDVD-${target}.app.zip" "Copy DVD.app"
+                cd - > /dev/null
+                echo "✅ Prepared: CopyDVD-${target}.app.zip"
+              fi
+            fi
+          done
+          
+          echo "Release assets prepared:"
+          ls -la release/
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          if git describe --tags --abbrev=0 2>/dev/null > /dev/null; then
+            PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || git rev-list --max-parents=0 HEAD)
+            CHANGELOG=$(git log $PREVIOUS_TAG..HEAD --pretty="format:- %s (%h)" --no-merges)
+          else
+            CHANGELOG="Initial release"
+          fi
+          
+          if [[ -z "$CHANGELOG" ]]; then
+            CHANGELOG="No significant changes"
+          fi
+          
+          cat > changelog.md << EOF
+          ## What's New in v${{ steps.version.outputs.version }}
+          
+          $CHANGELOG
+          
+          ## Supported Platforms
+          
+          - Linux (x86_64, aarch64)
+          - macOS (Intel, Apple Silicon) 
+          - Windows (x86_64)
+          
+          **Note**: ARM Linux build is CLI-only (no GUI) due to cross-compilation limitations.
+          EOF
+          
+          echo "Generated changelog:"
+          cat changelog.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: CopyDVD v${{ steps.version.outputs.version }}
+          body_path: changelog.md
+          files: release/*
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Cargo.toml version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+          rm Cargo.toml.bak
+          
+          # Configure git
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+          # Commit and push if changed
+          if ! git diff --quiet Cargo.toml; then
+            git add Cargo.toml
+            git commit -m "chore: bump version to $VERSION [skip ci]"
+            git push origin HEAD:${{ github.ref_name }} || true
+          fi

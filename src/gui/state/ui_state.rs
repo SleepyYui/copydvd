@@ -1,7 +1,7 @@
 use crate::dvd::types::Title;
 use crate::handbrake_manager::HandBrakeManager;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
 /// UI-specific state that doesn't belong in the core app state
@@ -109,6 +109,7 @@ impl Tab {
         }
     }
 
+    #[allow(dead_code, reason = "Icons removed from UI")]
     pub fn icon(&self) -> &'static str {
         match self {
             Tab::Main => "play",
@@ -448,5 +449,59 @@ impl UiState {
         }
 
         self.output_path = config.output_dir.to_string_lossy().to_string();
+    }
+}
+
+/// Toast notification types
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(dead_code, reason = "Future feature for in-app toast notifications")]
+pub enum ToastType {
+    Success,
+    Error,
+    Warning,
+    Info,
+}
+
+/// Toast notification structure
+#[derive(Debug, Clone)]
+#[allow(dead_code, reason = "Future feature for in-app toast notifications")]
+pub struct ToastNotification {
+    pub message: String,
+    pub toast_type: ToastType,
+    pub created_at: Instant,
+    pub duration: Duration,
+}
+
+impl ToastNotification {
+    #[allow(dead_code, reason = "Future feature for in-app toast notifications")]
+    pub fn new(message: String, toast_type: ToastType) -> Self {
+        let duration = match toast_type {
+            ToastType::Success => Duration::from_secs(3),
+            ToastType::Info => Duration::from_secs(2),
+            ToastType::Warning => Duration::from_secs(4),
+            ToastType::Error => Duration::from_secs(4),
+        };
+
+        Self {
+            message,
+            toast_type,
+            created_at: Instant::now(),
+            duration,
+        }
+    }
+
+    #[allow(dead_code, reason = "Future feature for in-app toast notifications")]
+    pub fn is_expired(&self) -> bool {
+        self.created_at.elapsed() > self.duration
+    }
+
+    #[allow(dead_code, reason = "Future feature for in-app toast notifications")]
+    pub fn remaining_ratio(&self) -> f32 {
+        let elapsed = self.created_at.elapsed();
+        if elapsed >= self.duration {
+            0.0
+        } else {
+            1.0 - (elapsed.as_secs_f32() / self.duration.as_secs_f32())
+        }
     }
 }

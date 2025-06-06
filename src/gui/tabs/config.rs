@@ -1,5 +1,4 @@
 use crate::config::Config;
-use crate::gui::icons::svg_icon;
 use crate::gui::notifications::{notify_error, notify_success};
 use crate::gui::state::UiState;
 use crate::gui::theme::{full_width_button, grouped_section, styled_panel, Layout};
@@ -41,12 +40,9 @@ fn render_dvd_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
                     egui::TextEdit::singleline(&mut ui_state.input_path),
                 );
 
-                ui.horizontal(|ui| {
-                    svg_icon(ui, "folder", 16.0, egui::Color32::from_rgb(100, 150, 255));
-                    if ui.button("Browse").clicked() {
-                        browse_for_input(ui_state);
-                    }
-                });
+                if ui.button("Browse").clicked() {
+                    browse_for_input(ui_state);
+                };
             });
 
             ui.checkbox(
@@ -68,12 +64,9 @@ fn render_output_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
                     egui::TextEdit::singleline(&mut ui_state.output_path),
                 );
 
-                ui.horizontal(|ui| {
-                    svg_icon(ui, "folder", 16.0, egui::Color32::from_rgb(100, 150, 255));
-                    if ui.button("Browse").clicked() {
-                        browse_for_output(ui_state);
-                    }
-                });
+                if ui.button("Browse").clicked() {
+                    browse_for_output(ui_state);
+                };
             });
 
             ui.horizontal(|ui| {
