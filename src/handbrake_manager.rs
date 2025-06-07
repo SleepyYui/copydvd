@@ -1385,7 +1385,7 @@ impl HandBrakeManager {
                     }
                 } else {
                     let mut cmd_args = vec![pm];
-                    cmd_args.extend(args.iter().map(|s| *s));
+                    cmd_args.extend(args.iter().copied());
                     tokio::process::Command::new("sudo")
                         .args(cmd_args)
                         .output()
