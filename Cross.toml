@@ -2,17 +2,6 @@
 default-target = "x86_64-unknown-linux-gnu"
 
 [target.aarch64-unknown-linux-gnu]
-image = "ghcr.io/cross-rs/cross:aarch64-unknown-linux-gnu"
-
-pre-build = [
-    "dpkg --add-architecture arm64",
-    "apt-get update -y",
-    "apt-get install -y build-essential",
-    "apt-get install -y gcc-aarch64-linux-gnu pkg-config",
-    "apt-get install -y libssl-dev:arm64 || echo 'libssl-dev:arm64 not available'",
-    "apt-get install -y libglib2.0-dev:arm64 || echo 'libglib2.0-dev:arm64 not available'",
-    "apt-get install -y zlib1g-dev:arm64 || echo 'zlib1g-dev:arm64 not available'"
-]
 
 [target.aarch64-unknown-linux-gnu.env]
 passthrough = [
