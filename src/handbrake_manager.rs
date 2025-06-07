@@ -747,6 +747,7 @@ impl HandBrakeManager {
 
     /// Get platform-specific asset patterns
     #[allow(clippy::vec_init_then_push)]
+    #[allow(unused_mut)]
     fn get_platform_patterns() -> Vec<PlatformPattern> {
         let mut patterns = Vec::new();
 
@@ -772,6 +773,7 @@ impl HandBrakeManager {
     }
 
     /// Fallback to hardcoded URLs if GitHub API fails
+    #[allow(unused_variables)]
     fn get_fallback_platform_info() -> Result<PlatformInfo> {
         let version = HANDBRAKE_VERSION;
         let base_url = "https://github.com/HandBrake/HandBrake/releases/download";
