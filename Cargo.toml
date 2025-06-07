@@ -74,11 +74,25 @@ objc = "0.2"
 objc-foundation = "0.1"
 
 [profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
+opt-level = 2        # Slightly less optimization for faster builds
+lto = "thin"         # Thin LTO instead of full LTO for faster builds
+codegen-units = 16   # More codegen units for parallel compilation
 panic = "abort"
 strip = true
+
+# Fast release build profile for development
+[profile.release-fast]
+inherits = "release"
+opt-level = 1        # Minimal optimization
+lto = false          # No LTO for fastest builds
+codegen-units = 256  # Maximum parallelization
+
+# Optimize dependencies for faster builds
+[profile.dev.package."*"]
+opt-level = 1        # Slightly optimize dependencies in dev builds
+
+[profile.release.package."*"]
+opt-level = 2        # Optimize dependencies reasonably in release builds
 
 [build-dependencies]
 icns = "0.3"

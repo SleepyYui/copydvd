@@ -1,4 +1,6 @@
-use crate::error::{AppError, Result};
+#[cfg(unix)]
+use crate::error::AppError;
+use crate::error::Result;
 use std::path::Path;
 use std::process::Command;
 use tracing::{info, warn};
