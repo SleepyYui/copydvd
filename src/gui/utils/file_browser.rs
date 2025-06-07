@@ -89,7 +89,6 @@ pub fn get_available_dvd_drives() -> Vec<PathBuf> {
 
     #[cfg(windows)]
     {
-
         unsafe {
             let drive_mask = winapi::um::fileapi::GetLogicalDrives();
             for i in 0..26 {
