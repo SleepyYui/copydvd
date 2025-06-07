@@ -15,7 +15,13 @@ This directory contains the CI/CD workflows for the CopyDVD project.
 **Jobs:**
 1. **Quality** - Code formatting, linting, testing
 2. **Build** - Cross-platform binary compilation
-3. **Release** - Creates GitHub releases (tags only)
+3. **Release** - **Automatically creates releases on every push to v2**
+
+**🎯 Key Features:**
+- **Automatic Versioning**: Generates date-based versions (YYYY.MM.DD-commit)
+- **Auto Cargo.toml Updates**: Updates version number and commits changes
+- **Auto Tag Creation**: Creates git tags for new releases
+- **Immediate Releases**: Every push to v2 triggers a new release
 
 **Supported Platforms:**
 - Linux: x86_64 (full), aarch64 (CLI-only)
@@ -37,24 +43,33 @@ This directory contains the CI/CD workflows for the CopyDVD project.
 
 ### Creating a Release
 
-#### Option 1: Git Tag (Recommended)
+#### Option 1: Automatic (Recommended) 
 ```bash
-# Create and push a version tag
+# Simply push to v2 branch - creates release automatically!
+git push origin v2
+```
+**Result**: Automatic version generation (e.g., `2025.01.06-abc1234`) + immediate release
+
+#### Option 2: Custom Version via Tag
+```bash
+# Create and push a version tag for custom versioning
 git tag v1.0.0
 git push origin v1.0.0
 ```
+**Result**: Uses tag version (e.g., `1.0.0`) + creates release
 
-#### Option 2: Manual Trigger
+#### Option 3: Manual Trigger
 1. Go to GitHub Actions tab
-2. Select "CI/CD Pipeline"
+2. Select "CI/CD Pipeline"  
 3. Click "Run workflow"
 4. Check "Force create release"
+**Result**: Uses automatic version generation + manual release
 
 ### Development Workflow
 
-1. **Push to v2**: Triggers quality checks and builds
-2. **Create PR**: Runs full validation pipeline
-3. **Tag release**: Triggers release creation with binaries
+1. **Push to v2**: Triggers quality checks, builds, AND automatic release
+2. **Create PR**: Runs full validation pipeline (no release)
+3. **Push to other branches**: Quality checks and builds only (no release)
 
 ### Local Validation
 
@@ -103,9 +118,26 @@ ACTIONS_RUNNER_DEBUG = true
 - Artifacts are retained for 30 days
 - Release assets are public (as expected for open source)
 
+## Automatic Versioning System
+
+**Format**: `YYYY.MM.DD-SHORTHASH`
+- `YYYY.MM.DD`: Date of the build
+- `SHORTHASH`: First 7 characters of git commit hash
+
+**Examples**:
+- `2025.01.06-abc1234` (automatic version from push to v2)
+- `1.0.0` (custom version from git tag v1.0.0)
+
+**Version Updates**:
+- Cargo.toml version field is automatically updated
+- Cargo.lock is regenerated and committed
+- Git tag is created for the new version
+- Changes are pushed back to the repository with `[skip ci]` to avoid infinite loops
+
 ## Maintenance
 
 - Workflows use pinned action versions for stability
 - Dependencies are auto-updated weekly via dedicated workflow
 - Rust cache is used to speed up builds
 - Cross-compilation uses official cross-rs Docker images
+- Version bumps are committed automatically with `[skip ci]` to prevent recursive builds
