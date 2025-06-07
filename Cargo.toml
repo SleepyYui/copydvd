@@ -74,9 +74,9 @@ objc = "0.2"
 objc-foundation = "0.1"
 
 [profile.release]
-opt-level = 2        # Slightly less optimization for faster builds
-lto = "thin"         # Thin LTO instead of full LTO for faster builds
-codegen-units = 16   # More codegen units for parallel compilation
+opt-level = 3        # Maximum optimization
+lto = "fat"          # Full link-time optimization
+codegen-units = 1    # Single unit for best optimization
 panic = "abort"
 strip = true
 
