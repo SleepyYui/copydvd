@@ -70,12 +70,12 @@ impl MacOSAutoFix {
 
     /// Set executable permissions on the binary
     #[allow(dead_code)]
-    fn set_executable_permissions(binary_path: &Path) -> Result<bool> {
+    fn set_executable_permissions(_binary_path: &Path) -> Result<bool> {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
 
-            let metadata = std::fs::metadata(binary_path)
+            let metadata = std::fs::metadata(_binary_path)
                 .map_err(|e| AppError::HandbrakeError(format!("Failed to get metadata: {}", e)))?;
 
             let mut permissions = metadata.permissions();
@@ -84,7 +84,7 @@ impl MacOSAutoFix {
 
             if current_mode != new_mode {
                 permissions.set_mode(new_mode);
-                std::fs::set_permissions(binary_path, permissions).map_err(|e| {
+                std::fs::set_permissions(_binary_path, permissions).map_err(|e| {
                     AppError::HandbrakeError(format!("Failed to set permissions: {}", e))
                 })?;
                 info!("Set executable permissions (mode: {:o})", new_mode);

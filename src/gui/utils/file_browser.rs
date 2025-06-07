@@ -89,8 +89,6 @@ pub fn get_available_dvd_drives() -> Vec<PathBuf> {
 
     #[cfg(windows)]
     {
-        use std::ffi::OsString;
-        use std::os::windows::ffi::OsStringExt;
 
         unsafe {
             let drive_mask = winapi::um::fileapi::GetLogicalDrives();

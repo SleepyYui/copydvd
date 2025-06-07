@@ -1059,13 +1059,12 @@ impl HandBrakeManager {
         info!("Preparing binary for execution: {}", binary_path.display());
 
         // Set execute permissions
-        let mut perms = fs::metadata(binary_path)
-            .with_context(|| format!("Failed to get metadata for {}", binary_path.display()))
-            .map_err(|e| AppError::HandbrakeError(e.to_string()))?
-            .permissions();
-
         #[cfg(unix)]
         {
+            let mut perms = fs::metadata(binary_path)
+                .with_context(|| format!("Failed to get metadata for {}", binary_path.display()))
+                .map_err(|e| AppError::HandbrakeError(e.to_string()))?
+                .permissions();
             // Ensure the owner has execute permission
             let mode = perms.mode();
             perms.set_mode(mode | 0o700); // rwx for owner
