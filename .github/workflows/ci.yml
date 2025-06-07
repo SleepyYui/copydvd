@@ -52,9 +52,6 @@ jobs:
       - name: Run tests
         run: cargo test --release --verbose --all-features
 
-      - name: Build (Release)
-        run: cargo build --release --verbose --all-features
-
   # Job 2: Cross-platform builds
   build:
     name: Build ${{ matrix.target }}
