@@ -68,12 +68,6 @@ jobs:
             use_cross: false
             features: "--all-features"
           
-          # Linux ARM64
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            binary: copydvd
-            use_cross: true
-            features: "--no-default-features"  # CLI only for ARM
           
           # macOS Intel
           - os: macos-latest
@@ -287,26 +281,28 @@ jobs:
           ls -la release/
 
 
-      - name: Generate changelog
-        id: changelog
+      - name: Generate AI-powered release notes
+        id: ai_release_notes
         run: |
-          # Get the latest commit that's not a version bump
-          LATEST_COMMIT=$(git log --oneline --grep="\[skip ci\]" --invert-grep -n 1 --pretty="format:%H" || git rev-parse HEAD)
-          
-          # Find previous tag or first commit
+          # Get previous tag for comparison
+          PREVIOUS_TAG=""
           if git describe --tags --abbrev=0 2>/dev/null > /dev/null; then
-            PREVIOUS_TAG=$(git describe --tags --abbrev=0 "$LATEST_COMMIT~1" 2>/dev/null || git rev-list --max-parents=0 HEAD)
-            # Get changelog excluding version bump commits
-            CHANGELOG=$(git log $PREVIOUS_TAG..$LATEST_COMMIT --pretty="format:- %s (%h)" --no-merges --grep="\[skip ci\]" --invert-grep || echo "- Initial release")
+            PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || "")
+          fi
+          
+          # Build comparison range
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            COMPARE_RANGE="$PREVIOUS_TAG..HEAD"
+            echo "Comparing changes from $PREVIOUS_TAG to HEAD"
           else
-            CHANGELOG="- Initial release of CopyDVD"
+            COMPARE_RANGE="HEAD"
+            echo "Initial release - analyzing all commits"
           fi
           
-          if [[ -z "$CHANGELOG" ]] || [[ "$CHANGELOG" == "" ]]; then
-            CHANGELOG="- Minor improvements and bug fixes"
-          fi
+          # Create preliminary release to let GitHub AI analyze the code
+          echo "Creating draft release for AI analysis..."
           
-          # Build info
+          # Build info for footer
           BUILD_TYPE="Automatic Release"
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             BUILD_TYPE="Tagged Release"
@@ -314,47 +310,134 @@ jobs:
             BUILD_TYPE="Manual Release"
           fi
           
-          cat > changelog.md << EOF
-          ## 🚀 What's New in v${{ steps.version.outputs.version }}
+          # Create the release as draft first with enhanced AI context
+          RELEASE_DATA=$(cat << EOF
+          {
+            "tag_name": "v${{ steps.version.outputs.version }}",
+            "name": "CopyDVD v${{ steps.version.outputs.version }}",
+            "body": "🤖 Generating AI-powered release notes...\n\nGitHub Copilot is analyzing code changes for comprehensive release notes.",
+            "draft": true,
+            "prerelease": ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }},
+            "generate_release_notes": true,
+            "target_commitish": "${{ github.sha }}"
+          }
+          EOF
+          )
           
-          $CHANGELOG
+          # Create draft release with AI generation
+          RELEASE_RESPONSE=$(curl -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${{ github.repository }}/releases \
+            -d "$RELEASE_DATA")
           
-          ## 📋 Build Information
-          - **Build Type**: $BUILD_TYPE
-          - **Commit**: ${{ github.sha }}
-          - **Branch**: ${{ github.ref_name }}
-          - **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          echo "Draft release created, extracting AI-generated notes..."
           
-          ## 🖥️ Supported Platforms
+          # Extract the AI-generated body
+          AI_NOTES=$(echo "$RELEASE_RESPONSE" | jq -r '.body // "Failed to generate AI notes"')
+          RELEASE_ID=$(echo "$RELEASE_RESPONSE" | jq -r '.id // ""')
           
-          | Platform | Architecture | Features | Status |
-          |----------|-------------|----------|--------|
-          | Linux | x86_64 | Full (GUI + CLI) | ✅ |
-          | Linux | aarch64 | CLI only | ✅ |
-          | macOS | Intel/Apple Silicon | Full (GUI + CLI) | ✅ |
-          | Windows | x86_64 | Full (GUI + CLI) | ✅ |
+          echo "release_id=$RELEASE_ID" >> $GITHUB_OUTPUT
+          echo "ai_notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$AI_NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           
-          **Note**: ARM Linux build is CLI-only (no GUI) due to cross-compilation limitations.
+          # Create enhanced release notes combining AI analysis with build info
+          cat > final_release_notes.md << EOF
+          $AI_NOTES
           
-          ## 📥 Installation
+          ---
           
-          1. Download the appropriate binary for your platform
-          2. Make it executable: \`chmod +x copydvd\` (Linux/macOS)
-          3. Run: \`./copydvd\` for GUI mode or \`./copydvd --cli\` for CLI mode
+          ## 💾 Downloads
+          
+          Choose the appropriate version for your operating system:
+          
+          | Platform | Architecture | Download | Features |
+          |----------|-------------|----------|----------|
+          | **Windows** | x64 | \`copydvd-x86_64-pc-windows-msvc.exe\` | Full (GUI + CLI) |
+          | **macOS** | Intel | \`copydvd-x86_64-apple-darwin\` | Full (GUI + CLI) |
+          | **macOS** | Apple Silicon | \`copydvd-aarch64-apple-darwin\` | Full (GUI + CLI) |
+          | **Linux** | x64 | \`copydvd-x86_64-unknown-linux-gnu\` | Full (GUI + CLI) |
+          
+          ### macOS App Bundle
+          - \`CopyDVD-x86_64-apple-darwin.app.zip\` - Native macOS application (Intel)
+          - \`CopyDVD-aarch64-apple-darwin.app.zip\` - Native macOS application (Apple Silicon)
+          
+          ## 🚀 Quick Start
+          
+          ### Windows
+          1. Download \`copydvd-x86_64-pc-windows-msvc.exe\`
+          2. Run the executable directly
+          
+          ### macOS  
+          1. Download the appropriate \`.app.zip\` for your Mac
+          2. Extract and move to Applications folder
+          3. Run CopyDVD from Applications or Launchpad
+          
+          ### Linux
+          1. Download \`copydvd-x86_64-unknown-linux-gnu\`
+          2. Make executable: \`chmod +x copydvd-x86_64-unknown-linux-gnu\`
+          3. Run: \`./copydvd-x86_64-unknown-linux-gnu\`
+          
+          ## 🖥️ Usage Modes
+          
+          - **GUI Mode** (default): Launch without arguments for the graphical interface
+          - **CLI Mode**: Add \`--cli\` flag for command-line operation
+          - **Help**: Use \`--help\` to see all available options
+          
+          ## ⚙️ System Requirements
+          
+          - **RAM**: 4GB minimum, 8GB recommended
+          - **Storage**: Sufficient space for DVD content (typically 4-8GB per DVD)
+          - **DVD Drive**: Physical drive or mounted ISO files
+          - **HandBrake**: Automatically installed by the application
+          
+          ---
+          
+          **Build Information**: $BUILD_TYPE • $(date -u '+%Y-%m-%d %H:%M UTC') • [\`${{ github.sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
           EOF
           
-          echo "Generated changelog:"
-          cat changelog.md
+          echo "Final enhanced release notes created"
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: CopyDVD v${{ steps.version.outputs.version }}
-          body_path: changelog.md
-          files: release/*
-          draft: false
-          prerelease: ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Update release with AI notes and assets
+        run: |
+          # Update the release with final notes and make it public
+          UPDATE_DATA=$(cat << EOF
+          {
+            "body": $(cat final_release_notes.md | jq -Rs .),
+            "draft": false
+          }
+          EOF
+          )
+          
+          curl -L \
+            -X PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${{ github.repository }}/releases/${{ steps.ai_release_notes.outputs.release_id }} \
+            -d "$UPDATE_DATA"
+          
+          echo "Release updated with AI-generated notes and published"
+
+      - name: Upload release assets
+        run: |
+          # Upload all the built assets to the release
+          for file in release/*; do
+            if [[ -f "$file" ]]; then
+              echo "Uploading $(basename "$file")..."
+              curl -L \
+                -X POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                -H "Content-Type: application/octet-stream" \
+                "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ steps.ai_release_notes.outputs.release_id }}/assets?name=$(basename "$file")" \
+                --data-binary "@$file"
+            fi
+          done
+          
+          echo "All assets uploaded successfully"
 

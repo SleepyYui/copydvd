@@ -1,0 +1,67 @@
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+      - duplicate
+      - invalid
+      - wontfix
+      - dependencies
+      - internal
+      - no-changelog
+    authors:
+      - dependabot
+      - dependabot[bot]
+      - github-actions[bot]
+  categories:
+    - title: "✨ New Features"
+      labels:
+        - enhancement
+        - feature
+        - new-feature
+    - title: "🐛 Bug Fixes"
+      labels:
+        - bug
+        - bugfix
+        - fix
+    - title: "⚡ Performance Improvements"  
+      labels:
+        - performance
+        - optimization
+        - perf
+    - title: "🔒 Security Updates"
+      labels:
+        - security
+        - vulnerability
+    - title: "🎨 User Interface"
+      labels:
+        - ui
+        - ux
+        - design
+        - gui
+        - interface
+    - title: "🔧 Improvements"
+      labels:
+        - improvement
+        - refactor
+        - cleanup
+        - maintenance
+    - title: "🌍 Platform Support"
+      labels:
+        - platform
+        - cross-platform
+        - windows
+        - macos
+        - linux
+        - compatibility
+    - title: "📚 Documentation"
+      labels:
+        - documentation
+        - docs
+    - title: "🏗️ Development"
+      labels:
+        - build
+        - ci
+        - cd
+        - workflow
+        - testing
+        - tests

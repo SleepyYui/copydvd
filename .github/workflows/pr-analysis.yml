@@ -1,0 +1,148 @@
+name: PR Analysis
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  analyze-pr:
+    name: Analyze Pull Request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate PR Analysis
+        id: analysis
+        run: |
+          # Get PR details
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_BODY="${{ github.event.pull_request.body }}"
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          
+          echo "Analyzing PR: $PR_TITLE"
+          
+          # Analyze changed files
+          CHANGED_FILES=$(git diff --name-only $BASE_SHA..$HEAD_SHA)
+          TOTAL_FILES=$(echo "$CHANGED_FILES" | wc -l)
+          
+          # Categorize changes
+          RUST_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(rs)$' | wc -l)
+          CONFIG_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(toml|yml|yaml|json)$' | wc -l)
+          DOC_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(md|txt)$' | wc -l)
+          WORKFLOW_FILES=$(echo "$CHANGED_FILES" | grep -E '\.github/' | wc -l)
+          
+          # Analyze code changes
+          ADDITIONS=$(git diff --numstat $BASE_SHA..$HEAD_SHA | awk '{sum += $1} END {print sum+0}')
+          DELETIONS=$(git diff --numstat $BASE_SHA..$HEAD_SHA | awk '{sum += $2} END {print sum+0}')
+          
+          # Check for specific patterns
+          GUI_CHANGES=$(git diff $BASE_SHA..$HEAD_SHA | grep -E "(egui|gui/)" | wc -l)
+          CLI_CHANGES=$(git diff $BASE_SHA..$HEAD_SHA | grep -E "(clap|cli)" | wc -l)
+          HANDBRAKE_CHANGES=$(git diff $BASE_SHA..$HEAD_SHA | grep -E "(handbrake|HandBrake)" | wc -l)
+          DVD_CHANGES=$(git diff $BASE_SHA..$HEAD_SHA | grep -E "(dvd|DVD)" | wc -l)
+          TEST_CHANGES=$(git diff $BASE_SHA..$HEAD_SHA | grep -E "(test|Test)" | wc -l)
+          
+          # Generate analysis
+          cat > pr_analysis.md << EOF
+          ## 📊 Pull Request Analysis
+          
+          ### 📈 Change Summary
+          - **Files changed**: $TOTAL_FILES
+          - **Lines added**: $ADDITIONS
+          - **Lines removed**: $DELETIONS
+          - **Net change**: $((ADDITIONS - DELETIONS)) lines
+          
+          ### 🗂️ File Categories
+          - **Rust source files**: $RUST_FILES
+          - **Configuration files**: $CONFIG_FILES  
+          - **Documentation**: $DOC_FILES
+          - **Workflow files**: $WORKFLOW_FILES
+          
+          ### 🎯 Component Impact Analysis
+          $(if [ $GUI_CHANGES -gt 0 ]; then echo "- **🖥️ GUI Components**: Modified ($GUI_CHANGES changes)"; fi)
+          $(if [ $CLI_CHANGES -gt 0 ]; then echo "- **⌨️ CLI Interface**: Modified ($CLI_CHANGES changes)"; fi)
+          $(if [ $HANDBRAKE_CHANGES -gt 0 ]; then echo "- **🎬 HandBrake Integration**: Modified ($HANDBRAKE_CHANGES changes)"; fi)
+          $(if [ $DVD_CHANGES -gt 0 ]; then echo "- **💿 DVD Processing**: Modified ($DVD_CHANGES changes)"; fi)
+          $(if [ $TEST_CHANGES -gt 0 ]; then echo "- **🧪 Testing**: Modified ($TEST_CHANGES changes)"; fi)
+          
+          ### 📂 Changed Files
+          \`\`\`
+          $CHANGED_FILES
+          \`\`\`
+          
+          ### 🔍 Review Checklist
+          
+          $(if [ $RUST_FILES -gt 0 ]; then echo "- [ ] **Code Quality**: Rust code follows project conventions"; fi)
+          $(if [ $GUI_CHANGES -gt 0 ]; then echo "- [ ] **GUI Testing**: Test GUI changes across platforms"; fi)
+          $(if [ $CLI_CHANGES -gt 0 ]; then echo "- [ ] **CLI Testing**: Verify CLI functionality and help text"; fi)
+          $(if [ $HANDBRAKE_CHANGES -gt 0 ]; then echo "- [ ] **HandBrake**: Test HandBrake integration and installation"; fi)
+          $(if [ $DVD_CHANGES -gt 0 ]; then echo "- [ ] **DVD Processing**: Test with various DVD formats"; fi)
+          $(if [ $CONFIG_FILES -gt 0 ]; then echo "- [ ] **Configuration**: Verify config changes don't break existing setups"; fi)
+          $(if [ $WORKFLOW_FILES -gt 0 ]; then echo "- [ ] **CI/CD**: Ensure workflow changes work correctly"; fi)
+          - [ ] **Cross-platform**: Test on Windows, macOS, and Linux
+          - [ ] **Performance**: Check for performance regressions
+          - [ ] **Error Handling**: Verify error scenarios are handled gracefully
+          
+          ### 🏗️ Build Recommendations
+          
+          $(if [ $ADDITIONS -gt 500 ]; then echo "⚠️ **Large changeset** - Consider breaking into smaller PRs for easier review"; fi)
+          $(if [ $GUI_CHANGES -gt 0 ] && [ $CLI_CHANGES -gt 0 ]; then echo "📱 **Multi-interface changes** - Test both GUI and CLI modes"; fi)
+          $(if [ $HANDBRAKE_CHANGES -gt 0 ]; then echo "🎬 **HandBrake changes** - Test automatic installation and version detection"; fi)
+          $(if [ $TEST_CHANGES -eq 0 ] && [ $RUST_FILES -gt 0 ]; then echo "🧪 **Consider adding tests** for new functionality"; fi)
+          
+          ---
+          
+          *This analysis was automatically generated by examining file changes and code patterns.*
+          EOF
+          
+          echo "Analysis generated successfully"
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            
+            // Read the analysis
+            const analysis = fs.readFileSync('pr_analysis.md', 'utf8');
+            
+            // Check if we already commented
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.data.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('📊 Pull Request Analysis')
+            );
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: analysis
+              });
+              console.log('Updated existing PR analysis comment');
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: analysis
+              });
+              console.log('Created new PR analysis comment');
+            }
