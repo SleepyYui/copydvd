@@ -148,9 +148,83 @@ jobs:
           if [[ -f "create_app_bundle.sh" ]]; then
             chmod +x create_app_bundle.sh
             ./create_app_bundle.sh ${{ matrix.target }}
+            
+            # Create zip archive of app bundle for release
+            if [[ -d "Copy DVD.app" ]]; then
+              zip -r "CopyDVD-${{ matrix.target }}.app.zip" "Copy DVD.app"
+              echo "Created app bundle zip: CopyDVD-${{ matrix.target }}.app.zip"
+            fi
           else
             echo "create_app_bundle.sh not found, skipping app bundle creation"
           fi
+
+      - name: Create Windows MSI Installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Install WiX Toolset via chocolatey
+          Write-Host "Installing WiX Toolset..."
+          choco install wixtoolset -y
+          
+          # Refresh PATH to include WiX tools
+          $env:PATH = [Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [Environment]::GetEnvironmentVariable("PATH", "User")
+          
+          # Extract version from Cargo.toml
+          $Version = (Select-String -Path "Cargo.toml" -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          $BinaryPath = "target\${{ matrix.target }}\release\copydvd.exe"
+          
+          # Create WiX source file
+          $WixSource = @"
+          <?xml version="1.0" encoding="UTF-8"?>
+          <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+            <Product Id="*" Name="Copy DVD" Language="1033" Version="$Version" Manufacturer="Copy DVD Team" UpgradeCode="12345678-1234-1234-1234-123456789012">
+              <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
+              
+              <MajorUpgrade DowngradeErrorMessage="A newer version of Copy DVD is already installed." />
+              <MediaTemplate EmbedCab="yes" />
+              
+              <Feature Id="ProductFeature" Title="Copy DVD" Level="1">
+                <ComponentGroupRef Id="ProductComponents" />
+              </Feature>
+              
+              <Directory Id="TARGETDIR" Name="SourceDir">
+                <Directory Id="ProgramFilesFolder">
+                  <Directory Id="INSTALLFOLDER" Name="Copy DVD" />
+                </Directory>
+                <Directory Id="ProgramMenuFolder">
+                  <Directory Id="ApplicationProgramsFolder" Name="Copy DVD"/>
+                </Directory>
+              </Directory>
+              
+              <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+                <Component Id="MainExecutable" Guid="87654321-4321-4321-4321-210987654321">
+                  <File Id="CopyDVDExe" Source="$BinaryPath" KeyPath="yes">
+                    <Shortcut Id="ApplicationStartMenuShortcut" Directory="ApplicationProgramsFolder" 
+                              Name="Copy DVD" WorkingDirectory="INSTALLFOLDER" Icon="CopyDVDIcon" IconIndex="0" 
+                              Advertise="yes" />
+                  </File>
+                </Component>
+              </ComponentGroup>
+              
+              <Icon Id="CopyDVDIcon" SourceFile="resources\icons\icon-256.png" />
+              <Property Id="ARPPRODUCTICON" Value="CopyDVDIcon" />
+            </Product>
+          </Wix>
+          "@
+          
+          # Write WiX source to file
+          $WixSource | Out-File -FilePath "CopyDVD.wxs" -Encoding UTF8
+          
+          # Compile the installer
+          Write-Host "Compiling MSI installer..."
+          & "C:\Program Files (x86)\WiX Toolset v3.11\bin\candle.exe" CopyDVD.wxs
+          & "C:\Program Files (x86)\WiX Toolset v3.11\bin\light.exe" -out "CopyDVD-${{ matrix.target }}.msi" CopyDVD.wixobj
+          
+          if (Test-Path "CopyDVD-${{ matrix.target }}.msi") {
+            Write-Host "MSI installer created successfully: CopyDVD-${{ matrix.target }}.msi"
+          } else {
+            Write-Error "Failed to create MSI installer"
+          }
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
@@ -159,6 +233,8 @@ jobs:
           path: |
             target/${{ matrix.target }}/release/${{ matrix.binary }}
             Copy DVD.app/**
+            CopyDVD-*.app.zip
+            CopyDVD-*.msi
           if-no-files-found: ignore
           retention-days: 30
 
@@ -267,12 +343,18 @@ jobs:
                 echo "✅ Prepared: copydvd-${target}${ext}"
               fi
               
-              # Handle macOS app bundle
-              if [[ -d "$artifact_dir/Copy DVD.app" ]]; then
-                cd "$artifact_dir"
-                zip -r "../release/CopyDVD-${target}.app.zip" "Copy DVD.app"
-                cd - > /dev/null
-                echo "✅ Prepared: CopyDVD-${target}.app.zip"
+              # Handle macOS app bundle (already zipped)
+              app_zip=$(find "$artifact_dir" -name "CopyDVD-*.app.zip" | head -1)
+              if [[ -n "$app_zip" ]]; then
+                cp "$app_zip" "release/"
+                echo "✅ Prepared: $(basename "$app_zip")"
+              fi
+              
+              # Handle Windows MSI installer
+              msi_file=$(find "$artifact_dir" -name "CopyDVD-*.msi" | head -1)
+              if [[ -n "$msi_file" ]]; then
+                cp "$msi_file" "release/"
+                echo "✅ Prepared: $(basename "$msi_file")"
               fi
             fi
           done
@@ -361,13 +443,19 @@ jobs:
           | **macOS** | Apple Silicon | \`copydvd-aarch64-apple-darwin\` | Full (GUI + CLI) |
           | **Linux** | x64 | \`copydvd-x86_64-unknown-linux-gnu\` | Full (GUI + CLI) |
           
-          ### macOS App Bundle
-          - \`CopyDVD-x86_64-apple-darwin.app.zip\` - Native macOS application (Intel)
-          - \`CopyDVD-aarch64-apple-darwin.app.zip\` - Native macOS application (Apple Silicon)
+          ### 📦 Installers & App Bundles
+          - \`CopyDVD-x86_64-apple-darwin.app.zip\` - macOS App Bundle (Intel)
+          - \`CopyDVD-aarch64-apple-darwin.app.zip\` - macOS App Bundle (Apple Silicon)  
+          - \`CopyDVD-x86_64-pc-windows-msvc.msi\` - Windows MSI Installer
           
           ## 🚀 Quick Start
           
           ### Windows
+          **Option 1: MSI Installer (Recommended)**
+          1. Download \`CopyDVD-x86_64-pc-windows-msvc.msi\`
+          2. Double-click to install - creates Start Menu shortcuts
+          
+          **Option 2: Portable Executable**
           1. Download \`copydvd-x86_64-pc-windows-msvc.exe\`
           2. Run the executable directly
           
