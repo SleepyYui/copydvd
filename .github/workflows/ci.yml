@@ -267,10 +267,16 @@ jobs:
             VERSION=${GITHUB_REF#refs/tags/v}
             echo "Using tag version: $VERSION"
           else
-            # Auto-generate version from date and commit
-            DATE_VERSION=$(date +'%Y.%m.%d')
+            # Auto-generate semver-compliant version from date and commit
+            YEAR=$(date +'%Y')
+            MONTH=$(date +'%-m')  # Remove leading zero
+            DAY=$(date +'%-d')    # Remove leading zero
             SHORT_SHA=$(git rev-parse --short HEAD)
-            VERSION="${DATE_VERSION}-${SHORT_SHA}"
+            # Convert hex SHA to decimal for patch version
+            PATCH_NUM=$((0x${SHORT_SHA}))
+            # Ensure patch number is reasonable (max 6 digits)
+            PATCH_NUM=$((PATCH_NUM % 999999))
+            VERSION="${YEAR}.${MONTH}.${DAY}-${PATCH_NUM}"
             echo "Generated version: $VERSION"
           fi
           

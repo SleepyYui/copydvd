@@ -198,6 +198,7 @@ pub fn should_check_for_updates_now() -> bool {
 }
 
 /// Perform automatic update check if needed (returns result without UI state)
+#[allow(dead_code)]
 pub async fn auto_check_for_updates() -> UpdateCheckResult {
     if !should_check_for_updates_now() {
         return UpdateCheckResult::UpToDate;

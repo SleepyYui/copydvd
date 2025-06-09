@@ -64,6 +64,12 @@ pub struct UiState {
     /// HandBrake phase progress for complex operations
     #[allow(dead_code)]
     pub handbrake_phase_progress: Option<Arc<std::sync::Mutex<(HandBrakeOperationStatus, f32)>>>,
+
+    /// Updates tab state
+    pub updates_tab: crate::gui::tabs::UpdatesTab,
+
+    /// Toast notifications
+    pub toasts: Option<Vec<ToastNotification>>,
 }
 
 // Global sender for simple HandBrake UI updates
@@ -95,6 +101,7 @@ pub enum Tab {
     Config,
     Server,
     HandBrake,
+    Updates,
     About,
 }
 
@@ -105,6 +112,7 @@ impl Tab {
             Tab::Config => "Config",
             Tab::Server => "Server",
             Tab::HandBrake => "HandBrake",
+            Tab::Updates => "Updates",
             Tab::About => "About",
         }
     }
@@ -116,6 +124,7 @@ impl Tab {
             Tab::Config => "gear",
             Tab::Server => "upload",
             Tab::HandBrake => "wrench",
+            Tab::Updates => "refresh",
             Tab::About => "info",
         }
     }
@@ -126,6 +135,7 @@ impl Tab {
             Tab::Config,
             Tab::Server,
             Tab::HandBrake,
+            Tab::Updates,
             Tab::About,
         ]
     }
@@ -159,6 +169,8 @@ pub struct ConfigTemp {
     #[allow(dead_code)]
     pub fast_start: bool,
     pub custom_args: String,
+    pub quality: i32,
+    pub handbrake_preset: String,
 
     // File management options
     pub organize_by_date: bool,
@@ -235,6 +247,26 @@ impl Default for UiState {
             handbrake_ui_receiver: None,
             download_progress: None,
             handbrake_phase_progress: None,
+            updates_tab: crate::gui::tabs::UpdatesTab::new(),
+            toasts: None,
+        }
+    }
+}
+
+impl UiState {
+    pub fn add_toast(&mut self, toast: ToastNotification) {
+        // Add toast to the collection
+        if self.toasts.is_none() {
+            self.toasts = Some(Vec::new());
+        }
+
+        if let Some(ref mut toasts) = self.toasts {
+            toasts.push(toast);
+
+            // Limit the number of toasts to prevent spam
+            if toasts.len() > 5 {
+                toasts.remove(0);
+            }
         }
     }
 }
@@ -260,6 +292,8 @@ impl Default for ConfigTemp {
             two_pass_encoding: false,
             fast_start: true,
             custom_args: String::new(),
+            quality: 22,
+            handbrake_preset: "Fast 1080p30".to_string(),
             organize_by_date: false,
             auto_cleanup: true,
             naming_pattern: "{title} - {date}".to_string(),

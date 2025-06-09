@@ -72,7 +72,10 @@ fn render_output_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
             ui.horizontal(|ui| {
                 ui.label("Output format:");
                 egui::ComboBox::from_id_source("output_format_combo")
-                    .selected_text(&ui_state.config_temp.encode_algo)
+                    .selected_text(
+                        egui::RichText::new(&ui_state.config_temp.encode_algo)
+                            .color(crate::gui::theme::ModernTheme::TEXT_PRIMARY),
+                    )
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
                             &mut ui_state.config_temp.encode_algo,
@@ -126,7 +129,10 @@ fn render_quality_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
             ui.horizontal(|ui| {
                 ui.label("Video codec:");
                 egui::ComboBox::from_id_source("video_codec_combo")
-                    .selected_text(&ui_state.config_temp.video_codec)
+                    .selected_text(
+                        egui::RichText::new(&ui_state.config_temp.video_codec)
+                            .color(crate::gui::theme::ModernTheme::TEXT_PRIMARY),
+                    )
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
                             &mut ui_state.config_temp.video_codec,
@@ -169,6 +175,10 @@ fn render_quality_settings(ui: &mut egui::Ui, ui_state: &mut UiState) {
 fn render_config_actions(ui: &mut egui::Ui, ui_state: &mut UiState, config: Arc<Mutex<Config>>) {
     styled_panel(ui, |ui| {
         grouped_section(ui, "Configuration", |ui| {
+            if full_width_button(ui, "Calculate Best Settings").clicked() {
+                calculate_optimal_settings(ui_state);
+            }
+
             if full_width_button(ui, "Save Settings").clicked() {
                 save_config(ui_state, config.clone());
             }
@@ -415,4 +425,51 @@ fn open_app_cache_folder() {
     } else {
         notify_error("Failed to determine app cache directory");
     }
+}
+
+fn calculate_optimal_settings(ui_state: &mut UiState) {
+    use crate::gui::notifications::{notify_info, notify_success};
+
+    notify_info("Calculating optimal settings based on system capabilities...");
+
+    // Detect system capabilities
+    let cpu_count = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1);
+
+    // Calculate optimal thread count (leave 1-2 cores for system)
+    let optimal_threads = if cpu_count <= 2 {
+        1
+    } else if cpu_count <= 4 {
+        cpu_count - 1
+    } else {
+        cpu_count - 2
+    };
+
+    // Set optimal thread count
+    ui_state.config_temp.thread_count = optimal_threads.to_string();
+
+    // Set optimal quality based on expected use case
+    // RF 20-23 is generally good for archival quality
+    ui_state.config_temp.quality = 22;
+
+    // Default to H.264 for better compatibility
+    ui_state.config_temp.video_codec = "H.264".to_string();
+
+    // Default to MP4 for better compatibility
+    ui_state.config_temp.encode_algo = "MP4".to_string();
+
+    // Enable GPU acceleration if available (conservative default: off)
+    ui_state.config_temp.gpu_acceleration = false;
+
+    // Two-pass encoding for better quality (but slower)
+    ui_state.config_temp.two_pass_encoding = false;
+
+    // Set reasonable handbrake preset
+    ui_state.config_temp.handbrake_preset = "Fast 1080p30".to_string();
+
+    notify_success(&format!(
+        "Optimal settings calculated: {} threads, RF{} quality, {} codec",
+        optimal_threads, 22, "H.264"
+    ));
 }

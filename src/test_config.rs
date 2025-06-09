@@ -33,6 +33,7 @@ mod tests {
                 max_cache_size_mb: 200,
                 verify_on_startup: false,
             },
+            optimal_settings_calculated: true,
         };
 
         // Save config
@@ -83,6 +84,10 @@ mod tests {
             original_config.handbrake_management.verify_on_startup,
             loaded_config.handbrake_management.verify_on_startup
         );
+        assert_eq!(
+            original_config.optimal_settings_calculated,
+            loaded_config.optimal_settings_calculated
+        );
     }
 
     #[test]
@@ -101,6 +106,7 @@ mod tests {
         assert!(config.handbrake_management.prefer_system);
         assert_eq!(config.handbrake_management.max_cache_size_mb, 100);
         assert!(config.handbrake_management.verify_on_startup);
+        assert!(!config.optimal_settings_calculated);
     }
 
     #[test]

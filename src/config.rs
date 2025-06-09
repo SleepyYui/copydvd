@@ -36,6 +36,10 @@ pub struct Config {
     /// HandBrake management settings
     #[serde(default)]
     pub handbrake_management: HandBrakeManagementConfig,
+
+    /// Whether optimal settings have been calculated (first run flag)
+    #[serde(default)]
+    pub optimal_settings_calculated: bool,
 }
 
 /// Server configuration for uploads
@@ -79,6 +83,7 @@ impl Default for Config {
             eject_after_rip: true,
             thread_count: num_cpus::get().max(1),
             handbrake_management: HandBrakeManagementConfig::default(),
+            optimal_settings_calculated: false,
         }
     }
 }

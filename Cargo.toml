@@ -6,7 +6,7 @@ authors = ["SleepyYui"]
 description = "A multi-threaded DVD copying application with GUI and CLI support - copy DVDs to MP4 and other formats"
 
 [features]
-default = ["gui"] # Ensures 'gui' feature is active by default
+default = ["gui"]                              # Ensures 'gui' feature is active by default
 gui = ["eframe", "egui", "egui_extras", "rfd"]
 
 [dependencies]
@@ -20,8 +20,11 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 clap = { version = "4.3", features = ["derive"] }
 regex = "1.8"
-chrono = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
+semver = "1.0"
 directories = "5.0"
+dirs = "5.0"
+open = "5.0"
 lazy_static = "1.4"
 num_cpus = "1.16"
 env_logger = "0.11.8"
@@ -34,7 +37,11 @@ tempfile = "3.6"
 which = "4.4"
 
 # HTTP and archive handling for HandBrake CLI management
-reqwest = { version = "0.11", features = ["stream", "json", "rustls-tls"], default-features = false }
+reqwest = { version = "0.11", features = [
+    "stream",
+    "json",
+    "rustls-tls",
+], default-features = false }
 futures-util = "0.3"
 bytes = "1.0"
 zip = "0.6"
@@ -44,12 +51,11 @@ sha2 = "0.10"
 notify-rust = "4.8"
 base64 = "0.21"
 
-# Icon processing  
+# Icon processing
 image = "0.24"
 
 # Additional GUI dependencies
 webbrowser = "1.0"
-open = "5.0"
 arboard = "3.2"
 
 # GUI (optional)
@@ -74,9 +80,9 @@ objc = "0.2"
 objc-foundation = "0.1"
 
 [profile.release]
-opt-level = 3        # Maximum optimization
-lto = "fat"          # Full link-time optimization
-codegen-units = 1    # Single unit for best optimization
+opt-level = 3     # Maximum optimization
+lto = "fat"       # Full link-time optimization
+codegen-units = 1 # Single unit for best optimization
 panic = "abort"
 strip = true
 
@@ -89,10 +95,10 @@ codegen-units = 256  # Maximum parallelization
 
 # Optimize dependencies for faster builds
 [profile.dev.package."*"]
-opt-level = 1        # Slightly optimize dependencies in dev builds
+opt-level = 1 # Slightly optimize dependencies in dev builds
 
 [profile.release.package."*"]
-opt-level = 2        # Optimize dependencies reasonably in release builds
+opt-level = 2 # Optimize dependencies reasonably in release builds
 
 [build-dependencies]
 icns = "0.3"

@@ -12,6 +12,7 @@ mod error;
 mod gui;
 mod handbrake_auto_fix;
 mod handbrake_manager;
+mod updater;
 mod upload;
 mod utils;
 

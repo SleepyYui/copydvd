@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::gui::icons::svg_icon;
 use crate::gui::notifications::{notify_error, notify_info, notify_success};
 use crate::gui::state::UiState;
 use crate::gui::theme::{
@@ -205,13 +206,16 @@ fn render_transfer_options(ui: &mut egui::Ui, ui_state: &mut UiState) {
 
         if ui_state.upload_to_server && !ui_state.config_temp.server_host.is_empty() {
             ui.add_space(Spacing::MD);
-            ui.label(
-                egui::RichText::new(format!(
-                    "→ Files will be uploaded to: {}",
-                    ui_state.config_temp.server_host
-                ))
-                .color(ModernTheme::TEXT_SECONDARY),
-            );
+            ui.horizontal(|ui| {
+                svg_icon(ui, "arrow-right", 14.0, ModernTheme::TEXT_SECONDARY);
+                ui.label(
+                    egui::RichText::new(format!(
+                        "Files will be uploaded to: {}",
+                        ui_state.config_temp.server_host
+                    ))
+                    .color(ModernTheme::TEXT_SECONDARY),
+                );
+            });
         }
     });
 }

@@ -89,7 +89,7 @@ pub fn styled_combo_box<'a>(
     options: &[&str],
 ) -> egui::Response {
     egui::ComboBox::from_id_source(id)
-        .selected_text(selected.as_str())
+        .selected_text(egui::RichText::new(selected.as_str()).color(crate::gui::theme::ModernTheme::TEXT_PRIMARY))
         .show_ui(ui, |ui| {
             for option in options {
                 ui.selectable_value(selected, option.to_string(), *option);

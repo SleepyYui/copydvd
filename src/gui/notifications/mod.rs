@@ -10,9 +10,29 @@ fn get_notification_with_icon(title: &str, body: &str, timeout_ms: u32) -> Notif
     notification
         .summary(title)
         .body(body)
-        .timeout(Timeout::Milliseconds(timeout_ms));
+        .timeout(Timeout::Milliseconds(timeout_ms))
+        .appname("Copy DVD");
 
-    // Try to create a persistent temp file for the icon
+    // Try multiple icon paths
+    let icon_paths = vec![
+        // Direct resource path (when running from source)
+        "resources/icons/icon-64.png",
+        "resources/icons/icon-128.png",
+        "resources/icons/icon-256.png",
+        // Fallback to system app icon
+        "/Applications/Copy DVD.app/Contents/Resources/icon.png",
+        "/Applications/Copy DVD.app/Contents/Resources/AppIcon.png",
+    ];
+
+    for icon_path in &icon_paths {
+        if std::path::Path::new(icon_path).exists() {
+            tracing::info!("Using icon at: {}", icon_path);
+            notification.icon(icon_path);
+            return notification;
+        }
+    }
+
+    // Create temp file with embedded icon as fallback
     let temp_path = std::env::temp_dir().join(format!("copydvd_icon_{}.png", std::process::id()));
     if !temp_path.exists() {
         if let Ok(mut file) = std::fs::File::create(&temp_path) {
@@ -30,12 +50,7 @@ fn get_notification_with_icon(title: &str, body: &str, timeout_ms: u32) -> Notif
         return notification;
     }
 
-    // Fallback: try to use a data URI (may not work on all platforms)
-    use base64::{engine::general_purpose, Engine};
-    let base64_icon = general_purpose::STANDARD.encode(ICON_DATA);
-    let data_uri = format!("data:image/png;base64,{}", base64_icon);
-    notification.icon(&data_uri);
-
+    tracing::warn!("No suitable icon found for notifications");
     notification
 }
 
@@ -110,20 +125,24 @@ impl OSNotifications {
     }
 }
 
-// Convenience functions
+// Convenience functions - these only trigger OS notifications
+// In-app notifications should be triggered separately via UI state
 pub fn notify_success(message: &str) {
-    OSNotifications::success("CopyDVD", message);
+    OSNotifications::success("Copy DVD", message);
 }
 
 pub fn notify_error(message: &str) {
-    OSNotifications::error("CopyDVD - Error", message);
+    OSNotifications::error("Copy DVD", message);
 }
 
 #[allow(dead_code)]
 pub fn notify_warning(message: &str) {
-    OSNotifications::warning("CopyDVD - Warning", message);
+    OSNotifications::warning("Copy DVD", message);
 }
 
 pub fn notify_info(message: &str) {
-    OSNotifications::info("CopyDVD", message);
+    OSNotifications::info("Copy DVD", message);
 }
+
+pub mod update_notifications;
+pub use update_notifications::UpdateNotificationManager;

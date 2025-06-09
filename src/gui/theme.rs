@@ -199,7 +199,7 @@ pub fn modern_button(ui: &mut egui::Ui, text: &str, variant: ButtonVariant) -> e
         .stroke(Stroke::new(1.0, border_color))
         .rounding(Rounding::same(BorderRadius::MD));
 
-    ui.add_sized([ui.available_width(), 32.0], button)
+    ui.add_sized([ui.available_width(), 24.0], button)
 }
 
 /// Button style variants
