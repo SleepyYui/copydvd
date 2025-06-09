@@ -288,8 +288,7 @@ jobs:
           sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
           rm -f Cargo.toml.bak
           
-          # Update Cargo.lock
-          cargo check --quiet
+          # Note: Skipping cargo check since we already validated everything in quality job
           
           # Configure git for automated commits
           git config --global user.name 'github-actions[bot]'
