@@ -191,15 +191,7 @@ cat > "$PKG_TEMP_DIR/Distribution.xml" << EOF
         <pkg-ref id="com.sleepyyui.copydvd.pkg"/>
     </choice>
     
-    <pkg-ref id="com.sleepyyui.copydvd.pkg">
-        <installer-script>
-            <volume-check>
-                <allowed-os-versions>
-                    <os-version min="10.15"/>
-                </allowed-os-versions>
-            </volume-check>
-        </installer-script>
-    </pkg-ref>
+    <pkg-ref id="com.sleepyyui.copydvd.pkg" version="$VERSION" onConclusion="none">copydvd-component.pkg</pkg-ref>
 </installer-gui-script>
 EOF
 

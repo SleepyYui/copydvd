@@ -292,10 +292,11 @@ jobs:
           
           $BinaryPath = "target\${{ matrix.target }}\release\copydvd.exe"
           
-          # Copy icon file for the installer
-          Write-Host "Setting up icon for installer..."
+          # Create a proper ICO file for WiX installer
+          Write-Host "Creating ICO file for installer..."
           
-          # Try different icon files in order of preference
+          # Try to create a proper ICO file using PowerShell
+          $IconCreated = $false
           $IconSources = @(
             "resources\icons\icon-32.png",
             "resources\icons\icon-16.png", 
@@ -303,23 +304,62 @@ jobs:
             "resources\icons\icon-128.png"
           )
           
-          $IconCreated = $false
           foreach ($IconSource in $IconSources) {
             if (Test-Path $IconSource) {
-              Copy-Item $IconSource "copydvd-icon.ico"
-              Write-Host "✅ Icon copied from $IconSource"
-              $IconCreated = $true
-              break
+              try {
+                # Load System.Drawing to work with images
+                Add-Type -AssemblyName System.Drawing
+                
+                # Load the PNG image
+                $img = [System.Drawing.Image]::FromFile((Resolve-Path $IconSource))
+                
+                # Create a bitmap from the image
+                $bitmap = New-Object System.Drawing.Bitmap($img)
+                
+                # Create an icon from the bitmap
+                $iconHandle = $bitmap.GetHicon()
+                $icon = [System.Drawing.Icon]::FromHandle($iconHandle)
+                
+                # Save as ICO file
+                $iconStream = [System.IO.File]::Create("copydvd-icon.ico")
+                $icon.Save($iconStream)
+                $iconStream.Close()
+                
+                # Clean up
+                $icon.Dispose()
+                $bitmap.Dispose()
+                $img.Dispose()
+                
+                Write-Host "✅ ICO file created from $IconSource"
+                $IconCreated = $true
+                break
+              } catch {
+                Write-Host "⚠️ Failed to convert $IconSource to ICO: $_"
+              }
+            }
+          }
+          
+          # Fallback: Create a simple ICO by copying PNG (WiX might accept it)
+          if (-not $IconCreated) {
+            foreach ($IconSource in $IconSources) {
+              if (Test-Path $IconSource) {
+                Copy-Item $IconSource "copydvd-icon.ico"
+                Write-Host "✅ Fallback: PNG copied as ICO from $IconSource"
+                $IconCreated = $true
+                break
+              }
             }
           }
           
           if (-not $IconCreated) {
-            Write-Host "❌ Warning: No icon files found, creating placeholder"
-            # Create an empty file to prevent WiX errors
-            New-Item -Path "copydvd-icon.ico" -ItemType File -Force
+            Write-Host "❌ Warning: No icon files found"
+            # Don't create empty file - let WiX fail gracefully without icon
           }
           
-          # Create WiX source file
+          # Create WiX source file with conditional icon support
+          $IconDeclaration = if ($IconCreated) { "              <Icon Id=`"CopyDVDIcon`" SourceFile=`"copydvd-icon.ico`" />" } else { "" }
+          $IconAttribute = if ($IconCreated) { "Icon=`"CopyDVDIcon`" " } else { "" }
+          
           $WixSource = @"
           <?xml version="1.0" encoding="UTF-8"?>
           <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
@@ -344,17 +384,17 @@ jobs:
                 <Directory Id="DesktopFolder" />
               </Directory>
               
-              <Icon Id="CopyDVDIcon" SourceFile="copydvd-icon.ico" />
+          $IconDeclaration
               
               <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
                 <Component Id="MainExecutable" Guid="87654321-4321-4321-4321-210987654321">
                   <File Id="CopyDVDExe" Source="$BinaryPath" KeyPath="yes">
                     <Shortcut Id="ApplicationStartMenuShortcut" Directory="ApplicationProgramsFolder" 
                               Name="Copy DVD" WorkingDirectory="INSTALLFOLDER" 
-                              Icon="CopyDVDIcon" Advertise="yes" />
+                              ${IconAttribute}Advertise="yes" />
                     <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" 
                               Name="Copy DVD" WorkingDirectory="INSTALLFOLDER" 
-                              Icon="CopyDVDIcon" Advertise="yes" />
+                              ${IconAttribute}Advertise="yes" />
                   </File>
                 </Component>
               </ComponentGroup>
