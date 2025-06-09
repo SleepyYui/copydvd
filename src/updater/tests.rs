@@ -147,6 +147,7 @@ mod tests {
 
         // Should find a compatible asset
         assert!(result.is_ok());
+        #[allow(unused_variables)]
         let asset = result.unwrap();
 
         // Should prefer installer over binary
