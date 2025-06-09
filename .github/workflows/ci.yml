@@ -217,8 +217,8 @@ jobs:
           
           # Compile the installer
           Write-Host "Compiling MSI installer..."
-          & "C:\Program Files (x86)\WiX Toolset v3.11\bin\candle.exe" CopyDVD.wxs
-          & "C:\Program Files (x86)\WiX Toolset v3.11\bin\light.exe" -out "CopyDVD-${{ matrix.target }}.msi" CopyDVD.wixobj
+          & "C:\Program Files (x86)\WiX Toolset v3.14\bin\candle.exe" CopyDVD.wxs
+          & "C:\Program Files (x86)\WiX Toolset v3.14\bin\light.exe" -out "CopyDVD-${{ matrix.target }}.msi" CopyDVD.wixobj
           
           if (Test-Path "CopyDVD-${{ matrix.target }}.msi") {
             Write-Host "MSI installer created successfully: CopyDVD-${{ matrix.target }}.msi"
