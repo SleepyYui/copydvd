@@ -200,14 +200,15 @@ jobs:
                 <Component Id="MainExecutable" Guid="87654321-4321-4321-4321-210987654321">
                   <File Id="CopyDVDExe" Source="$BinaryPath" KeyPath="yes">
                     <Shortcut Id="ApplicationStartMenuShortcut" Directory="ApplicationProgramsFolder" 
-                              Name="Copy DVD" WorkingDirectory="INSTALLFOLDER" Icon="CopyDVDIcon" IconIndex="0" 
+                              Name="Copy DVD" WorkingDirectory="INSTALLFOLDER" 
                               Advertise="yes" />
                   </File>
                 </Component>
+                <Component Id="StartMenuComponent" Directory="ApplicationProgramsFolder" Guid="11111111-1111-1111-1111-111111111111">
+                  <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall" />
+                  <RegistryValue Root="HKCU" Key="Software\CopyDVD" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+                </Component>
               </ComponentGroup>
-              
-              <Icon Id="CopyDVDIcon" SourceFile="resources\icons\icon-256.png" />
-              <Property Id="ARPPRODUCTICON" Value="CopyDVDIcon" />
             </Product>
           </Wix>
           "@
