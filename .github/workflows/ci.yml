@@ -20,13 +20,95 @@ env:
   RUSTFLAGS: "-D warnings"
 
 jobs:
-  # Job 1: Code Quality and Testing
-  quality:
-    name: Code Quality
+  # Job 1: Generate version and update Cargo.toml
+  version:
+    name: Generate Version
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/v2' || startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_release == 'true')
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Generate version and update Cargo.toml
+        id: version
+        run: |
+          # Determine version
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # Use tag version
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "Using tag version: $VERSION"
+          else
+            # Auto-generate semver-compliant version from date and commit
+            YEAR=$(date +'%Y')
+            MONTH=$(date +'%-m')  # Remove leading zero
+            DAY=$(date +'%-d')    # Remove leading zero
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            # Convert hex SHA to decimal for patch version
+            PATCH_NUM=$((0x${SHORT_SHA}))
+            # Ensure patch number is reasonable (max 6 digits)
+            PATCH_NUM=$((PATCH_NUM % 999999))
+            VERSION="${YEAR}.${MONTH}.${DAY}-${PATCH_NUM}"
+            echo "Generated version: $VERSION"
+          fi
+          
+          # Update Cargo.toml with new version
+          echo "Updating Cargo.toml version to: $VERSION"
+          sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+          rm -f Cargo.toml.bak
+          
+          # Note: Skipping cargo check since we already validated everything in quality job
+          
+          # Configure git for automated commits
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+          # Check if we need to commit version changes
+          if ! git diff --quiet Cargo.toml; then
+            echo "Committing version update..."
+            git add Cargo.toml
+            git commit -m "chore: bump version to $VERSION [skip ci]"
+            
+            # Create and push tag for the new version (only if not already a tag build)
+            if [[ "${{ github.ref }}" != refs/tags/* ]]; then
+              TAG_NAME="v$VERSION"
+              if ! git tag --list | grep -q "^$TAG_NAME$"; then
+                git tag "$TAG_NAME"
+                echo "Created new tag: $TAG_NAME"
+                
+                # Push changes and tag
+                git push origin HEAD:${{ github.ref_name }} || echo "Failed to push commit"
+                git push origin "$TAG_NAME" || echo "Failed to push tag"
+              else
+                echo "Tag $TAG_NAME already exists"
+              fi
+            fi
+          else
+            echo "No version changes needed"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Final version: $VERSION"
+
+  # Job 2: Code Quality and Testing
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    needs: version
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -52,11 +134,11 @@ jobs:
       - name: Run tests
         run: cargo test --release --verbose --all-features
 
-  # Job 2: Cross-platform builds
+  # Job 3: Cross-platform builds
   build:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
-    needs: quality
+    needs: [version, quality]
     strategy:
       fail-fast: false
       matrix:
@@ -93,6 +175,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -147,26 +232,20 @@ jobs:
         run: |
           if [[ -f "create_app_bundle.sh" ]]; then
             chmod +x create_app_bundle.sh
-            ./create_app_bundle.sh ${{ matrix.target }}
+            # Pass the version from the version job to the script
+            VERSION="${{ needs.version.outputs.version }}" ./create_app_bundle.sh ${{ matrix.target }}
             
-            # Create zip archive of app bundle for release with consistent naming
-            if [[ -d "Copy DVD.app" ]]; then
-              # Extract version for consistent naming
-              VERSION=$(grep "^version = " Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-              
-              # Create OS-specific name
-              if [[ "${{ matrix.target }}" == "x86_64-apple-darwin" ]]; then
-                OS_NAME="macos-intel"
-              elif [[ "${{ matrix.target }}" == "aarch64-apple-darwin" ]]; then
-                OS_NAME="macos-arm"
+            # The create_app_bundle.sh script now creates .pkg installer
+            # Check if PKG installer was created
+            if ls CopyDVD-*.pkg 1> /dev/null 2>&1; then
+              echo "✅ PKG installer created successfully"
+              ls -la CopyDVD-*.pkg
+            else
+              echo "⚠️ No PKG installer found, checking for app bundle..."
+              if [[ -d "CopyDVD.app" ]]; then
+                echo "✅ App bundle exists but no PKG installer created"
+                ls -la CopyDVD.app
               fi
-              
-              ZIP_NAME="copydvd-${OS_NAME}-${VERSION}.app.zip"
-              zip -r "$ZIP_NAME" "Copy DVD.app"
-              echo "Created app bundle zip: $ZIP_NAME"
-              
-              # Also create a symlink with the old name for compatibility
-              ln -s "$ZIP_NAME" "CopyDVD-${{ matrix.target }}.app.zip"
             fi
           else
             echo "create_app_bundle.sh not found, skipping app bundle creation"
@@ -183,8 +262,8 @@ jobs:
           # Refresh PATH to include WiX tools
           $env:PATH = [Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [Environment]::GetEnvironmentVariable("PATH", "User")
           
-          # Extract version from Cargo.toml
-          $CargoVersion = (Select-String -Path "Cargo.toml" -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          # Use version from the version job
+          $CargoVersion = "${{ needs.version.outputs.version }}"
           
           # Convert version to WiX-compatible format (x.x.x.x)
           # WiX requires: major < 256, minor < 256, patch < 65536, build < 65536
@@ -281,17 +360,17 @@ jobs:
           name: copydvd-${{ matrix.target }}
           path: |
             target/${{ matrix.target }}/release/${{ matrix.binary }}
-            Copy DVD.app/**
-            CopyDVD-*.app.zip
+            CopyDVD-*.pkg
+            copydvd-*.msi
             CopyDVD-*.msi
           if-no-files-found: ignore
           retention-days: 30
 
-  # Job 3: Create Release (automatically on v2 pushes, tags, or manual trigger)
+  # Job 4: Create Release (automatically on v2 pushes, tags, or manual trigger)
   release:
     name: Create Release
     runs-on: ubuntu-latest
-    needs: [quality, build]
+    needs: [version, quality, build]
     if: github.ref == 'refs/heads/v2' || startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_release == 'true')
     permissions:
       contents: write
@@ -304,68 +383,11 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: true
 
-      - name: Install Rust (for Cargo.lock update)
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Generate version and update Cargo.toml
+      - name: Get version from previous job
         id: version
         run: |
-          # Determine version
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            # Use tag version
-            VERSION=${GITHUB_REF#refs/tags/v}
-            echo "Using tag version: $VERSION"
-          else
-            # Auto-generate semver-compliant version from date and commit
-            YEAR=$(date +'%Y')
-            MONTH=$(date +'%-m')  # Remove leading zero
-            DAY=$(date +'%-d')    # Remove leading zero
-            SHORT_SHA=$(git rev-parse --short HEAD)
-            # Convert hex SHA to decimal for patch version
-            PATCH_NUM=$((0x${SHORT_SHA}))
-            # Ensure patch number is reasonable (max 6 digits)
-            PATCH_NUM=$((PATCH_NUM % 999999))
-            VERSION="${YEAR}.${MONTH}.${DAY}-${PATCH_NUM}"
-            echo "Generated version: $VERSION"
-          fi
-          
-          # Update Cargo.toml with new version
-          echo "Updating Cargo.toml version to: $VERSION"
-          sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
-          rm -f Cargo.toml.bak
-          
-          # Note: Skipping cargo check since we already validated everything in quality job
-          
-          # Configure git for automated commits
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          
-          # Check if we need to commit version changes
-          if ! git diff --quiet Cargo.toml Cargo.lock; then
-            echo "Committing version update..."
-            git add Cargo.toml Cargo.lock
-            git commit -m "chore: bump version to $VERSION [skip ci]"
-            
-            # Create and push tag for the new version (only if not already a tag build)
-            if [[ "${{ github.ref }}" != refs/tags/* ]]; then
-              TAG_NAME="v$VERSION"
-              if ! git tag --list | grep -q "^$TAG_NAME$"; then
-                git tag "$TAG_NAME"
-                echo "Created new tag: $TAG_NAME"
-                
-                # Push changes and tag
-                git push origin HEAD:${{ github.ref_name }} || echo "Failed to push commit"
-                git push origin "$TAG_NAME" || echo "Failed to push tag"
-              else
-                echo "Tag $TAG_NAME already exists"
-              fi
-            fi
-          else
-            echo "No version changes needed"
-          fi
-          
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Final version: $VERSION"
+          echo "version=${{ needs.version.outputs.version }}" >> $GITHUB_OUTPUT
+          echo "Using version from version job: ${{ needs.version.outputs.version }}"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -431,13 +453,13 @@ jobs:
                 echo "❌ Binary not found for $target"
               fi
               
-              # Handle macOS app bundle with both old and new naming
-              app_zip=$(find "$artifact_dir" -name "*.app.zip" -type f | head -1)
-              if [[ -n "$app_zip" ]]; then
-                # Rename to consistent format
-                new_app_name="copydvd-${os_name}-${VERSION}.app.zip"
-                cp "$app_zip" "release/$new_app_name"
-                echo "✅ Prepared app bundle: $new_app_name (from $(basename "$app_zip"))"
+              # Handle macOS PKG installer
+              pkg_file=$(find "$artifact_dir" -name "*.pkg" -type f | head -1)
+              if [[ -n "$pkg_file" ]]; then
+                # Rename PKG to consistent format
+                new_pkg_name="copydvd-${os_name}-${VERSION}.pkg"
+                cp "$pkg_file" "release/$new_pkg_name"
+                echo "✅ Prepared PKG installer: $new_pkg_name (from $(basename "$pkg_file"))"
               fi
               
               # Handle Windows MSI installer with both old and new naming
@@ -554,17 +576,26 @@ jobs:
           fi
           
           # Now create the release with the generated notes
-          RELEASE_DATA=$(cat << EOF
-          {
-            "tag_name": "v${{ steps.version.outputs.version }}",
-            "name": "$(if [[ -n "$GENERATED_NAME" ]]; then echo "$GENERATED_NAME"; else echo "CopyDVD v${{ steps.version.outputs.version }}"; fi)",
-            "body": $(echo "$AI_NOTES" | jq -Rs .),
-            "draft": true,
-            "prerelease": ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }},
-            "target_commitish": "${{ github.sha }}"
-          }
-          EOF
-          )
+          RELEASE_TITLE="CopyDVD v${{ steps.version.outputs.version }}"
+          if [[ -n "$GENERATED_NAME" ]]; then
+            RELEASE_TITLE="$GENERATED_NAME"
+          fi
+          
+          RELEASE_DATA=$(jq -n \
+            --arg tag_name "v${{ steps.version.outputs.version }}" \
+            --arg name "$RELEASE_TITLE" \
+            --arg body "$AI_NOTES" \
+            --arg target_commitish "${{ github.sha }}" \
+            --argjson draft true \
+            --argjson prerelease ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }} \
+            '{
+              tag_name: $tag_name,
+              name: $name,
+              body: $body,
+              draft: $draft,
+              prerelease: $prerelease,
+              target_commitish: $target_commitish
+            }')
           
           # Create the release with the AI-generated content
           RELEASE_RESPONSE=$(curl -L \
@@ -605,9 +636,9 @@ jobs:
           | **macOS** | Apple Silicon | \`copydvd-macos-arm-${{ steps.version.outputs.version }}\` | Full (GUI + CLI) |
           | **Linux** | x64 | \`copydvd-linux-${{ steps.version.outputs.version }}\` | Full (GUI + CLI) |
           
-          ### 📦 Installers & App Bundles
-          - \`copydvd-macos-intel-${{ steps.version.outputs.version }}.app.zip\` - macOS App Bundle (Intel)
-          - \`copydvd-macos-arm-${{ steps.version.outputs.version }}.app.zip\` - macOS App Bundle (Apple Silicon)  
+          ### 📦 Installers
+          - \`copydvd-macos-intel-${{ steps.version.outputs.version }}.pkg\` - macOS PKG Installer (Intel) 
+          - \`copydvd-macos-arm-${{ steps.version.outputs.version }}.pkg\` - macOS PKG Installer (Apple Silicon)
           - \`copydvd-windows-${{ steps.version.outputs.version }}.msi\` - Windows MSI Installer
           
           ## 🚀 Quick Start
@@ -622,9 +653,12 @@ jobs:
           2. Run the executable directly
           
           ### macOS  
-          1. Download the appropriate \`.app.zip\` for your Mac
-          2. Extract and move to Applications folder
-          3. Run CopyDVD from Applications or Launchpad
+          1. Download the appropriate \`.pkg\` installer for your Mac (Intel or Apple Silicon)
+          2. Double-click the PKG file to launch the installer
+          3. Follow the installation wizard with welcome screen, license agreement, and completion
+          4. The installer automatically places CopyDVD in your Applications folder
+          5. **Important**: On first launch, right-click CopyDVD in Applications → Open → Click "Open" to bypass security warning
+          6. Alternatively: System Preferences → Security & Privacy → Allow CopyDVD
           
           ### Linux
           1. Download \`copydvd-x86_64-unknown-linux-gnu\`
@@ -657,13 +691,13 @@ jobs:
       - name: Update release with AI notes and assets
         run: |
           # Update the release with final notes and make it public
-          UPDATE_DATA=$(cat << EOF
-          {
-            "body": $(cat final_release_notes.md | jq -Rs .),
-            "draft": false
-          }
-          EOF
-          )
+          UPDATE_DATA=$(jq -n \
+            --rawfile body final_release_notes.md \
+            --argjson draft false \
+            '{
+              body: $body,
+              draft: $draft
+            }')
           
           curl -L \
             -X PATCH \
