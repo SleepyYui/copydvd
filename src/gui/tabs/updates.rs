@@ -287,7 +287,7 @@ impl UpdatesTab {
             // Show brief description
             if !release.body.is_empty() {
                 let summary = self.extract_summary(&release.body);
-                ui.indent(format!("release_summary_{}", index), |ui| {
+                ui.indent(format!("release_summary_{}_{}", release.tag_name, index), |ui| {
                     ui.label(summary);
                 });
             }
