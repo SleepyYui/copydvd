@@ -75,7 +75,9 @@ mod tests {
         #[cfg(target_os = "windows")]
         {
             assert!(installer_patterns.contains(&".msi"));
-            assert!(binary_patterns.iter().any(|p| p.contains("pc-windows-msvc")));
+            assert!(binary_patterns
+                .iter()
+                .any(|p| p.contains("pc-windows-msvc")));
         }
 
         #[cfg(target_os = "macos")]
@@ -87,7 +89,9 @@ mod tests {
         #[cfg(target_os = "linux")]
         {
             assert!(!installer_patterns.is_empty()); // Should have various Linux package formats
-            assert!(binary_patterns.iter().any(|p| p.contains("unknown-linux-gnu")));
+            assert!(binary_patterns
+                .iter()
+                .any(|p| p.contains("unknown-linux-gnu")));
         }
     }
 
