@@ -128,21 +128,32 @@ impl Updater {
     }
 
     fn get_platform_filter() -> String {
-        #[cfg(target_os = "windows")]
-        return "windows-msvc".to_string();
+        #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+        return "x86_64-pc-windows-msvc".to_string();
 
-        #[cfg(target_os = "macos")]
-        {
-            #[cfg(target_arch = "x86_64")]
-            return "x86_64-apple-darwin".to_string();
-            #[cfg(target_arch = "aarch64")]
-            return "aarch64-apple-darwin".to_string();
-        }
+        #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+        return "aarch64-pc-windows-msvc".to_string();
 
-        #[cfg(target_os = "linux")]
+        #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+        return "x86_64-apple-darwin".to_string();
+
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        return "aarch64-apple-darwin".to_string();
+
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
         return "x86_64-unknown-linux-gnu".to_string();
 
-        #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+        #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+        return "aarch64-unknown-linux-gnu".to_string();
+
+        #[cfg(not(any(
+            all(target_os = "windows", target_arch = "x86_64"),
+            all(target_os = "windows", target_arch = "aarch64"),
+            all(target_os = "macos", target_arch = "x86_64"),
+            all(target_os = "macos", target_arch = "aarch64"),
+            all(target_os = "linux", target_arch = "x86_64"),
+            all(target_os = "linux", target_arch = "aarch64")
+        )))]
         return "unknown".to_string();
     }
 

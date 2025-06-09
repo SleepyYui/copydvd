@@ -75,19 +75,19 @@ mod tests {
         #[cfg(target_os = "windows")]
         {
             assert!(installer_patterns.contains(&".msi"));
-            assert!(binary_patterns.iter().any(|p| p.contains("windows")));
+            assert!(binary_patterns.iter().any(|p| p.contains("pc-windows-msvc")));
         }
 
         #[cfg(target_os = "macos")]
         {
             assert!(installer_patterns.contains(&".app.zip"));
-            assert!(binary_patterns.iter().any(|p| p.contains("darwin")));
+            assert!(binary_patterns.iter().any(|p| p.contains("apple-darwin")));
         }
 
         #[cfg(target_os = "linux")]
         {
             assert!(!installer_patterns.is_empty()); // Should have various Linux package formats
-            assert!(binary_patterns.iter().any(|p| p.contains("linux")));
+            assert!(binary_patterns.iter().any(|p| p.contains("unknown-linux-gnu")));
         }
     }
 
@@ -117,7 +117,7 @@ mod tests {
             draft: false,
             assets: vec![
                 Asset {
-                    name: "copydvd-windows-msvc.exe".to_string(),
+                    name: "copydvd-x86_64-pc-windows-msvc.exe".to_string(),
                     download_url: "https://example.com/windows.exe".to_string(),
                     size: 1024,
                     content_type: "application/octet-stream".to_string(),
@@ -135,8 +135,32 @@ mod tests {
                     content_type: "application/octet-stream".to_string(),
                 },
                 Asset {
-                    name: "CopyDVD-windows-msvc.msi".to_string(),
+                    name: "copydvd-x86_64-unknown-linux-gnu".to_string(),
+                    download_url: "https://example.com/linux-x86".to_string(),
+                    size: 1024,
+                    content_type: "application/octet-stream".to_string(),
+                },
+                Asset {
+                    name: "CopyDVD-x86_64-pc-windows-msvc.msi".to_string(),
                     download_url: "https://example.com/installer.msi".to_string(),
+                    size: 2048,
+                    content_type: "application/octet-stream".to_string(),
+                },
+                Asset {
+                    name: "CopyDVD-x86_64-apple-darwin.app.zip".to_string(),
+                    download_url: "https://example.com/macos-app.zip".to_string(),
+                    size: 3072,
+                    content_type: "application/zip".to_string(),
+                },
+                Asset {
+                    name: "CopyDVD-aarch64-apple-darwin.app.zip".to_string(),
+                    download_url: "https://example.com/macos-arm-app.zip".to_string(),
+                    size: 3072,
+                    content_type: "application/zip".to_string(),
+                },
+                Asset {
+                    name: "copydvd-x86_64-unknown-linux-gnu.deb".to_string(),
+                    download_url: "https://example.com/linux.deb".to_string(),
                     size: 2048,
                     content_type: "application/octet-stream".to_string(),
                 },
@@ -152,10 +176,13 @@ mod tests {
 
         // Should prefer installer over binary
         #[cfg(target_os = "windows")]
-        assert!(asset.name.ends_with(".msi") || asset.name.contains("windows"));
+        assert!(asset.name.ends_with(".msi") || asset.name.contains("pc-windows-msvc"));
 
         #[cfg(target_os = "macos")]
-        assert!(asset.name.contains("darwin"));
+        assert!(asset.name.ends_with(".app.zip") || asset.name.contains("apple-darwin"));
+
+        #[cfg(target_os = "linux")]
+        assert!(asset.name.contains("unknown-linux-gnu"));
     }
 
     #[test]
