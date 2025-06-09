@@ -435,8 +435,11 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
           
           # Create enhanced release notes combining AI analysis with build info
-          cat > final_release_notes.md << EOF
-          $AI_NOTES
+          # First write AI notes safely
+          echo "$AI_NOTES" > final_release_notes.md
+          
+          # Then append the rest of the release notes
+          cat >> final_release_notes.md << 'EOF'
           
           ---
           
