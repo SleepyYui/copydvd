@@ -173,20 +173,21 @@ jobs:
           $CargoVersion = (Select-String -Path "Cargo.toml" -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
           
           # Convert version to WiX-compatible format (x.x.x.x)
-          # Format: 2025.6.9-253651 -> use modulo to fit within WiX limits
+          # WiX requires: major < 256, minor < 256, patch < 65536, build < 65536
           if ($CargoVersion -match '^(\d+)\.(\d+)\.(\d+)-(\d+)$') {
-              $major = [Math]::Min([int]$matches[1], 65534)
-              $minor = [Math]::Min([int]$matches[2], 65534)  
-              $patch = [Math]::Min([int]$matches[3], 65534)
-              # Use modulo to wrap large build numbers within valid range
+              # Convert year-based version to smaller numbers
+              $yearPart = [int]$matches[1]
+              $major = $yearPart % 100  # Last two digits of year (2025 -> 25)
+              $minor = [Math]::Min([int]$matches[2], 255)  # Month (1-12, fits easily)
+              $patch = [Math]::Min([int]$matches[3], 65535)  # Day (1-31, fits easily)
               $buildNum = [int]$matches[4]
-              $build = $buildNum % 65535  # Keep it under 65535
+              $build = $buildNum % 65535  # Build number wrapped
               $Version = "$major.$minor.$patch.$build"
           } elseif ($CargoVersion -match '^(\d+)\.(\d+)\.(\d+)$') {
               # Handle standard semver format
-              $major = [Math]::Min([int]$matches[1], 65534)
-              $minor = [Math]::Min([int]$matches[2], 65534)
-              $patch = [Math]::Min([int]$matches[3], 65534)
+              $major = [Math]::Min([int]$matches[1], 255)
+              $minor = [Math]::Min([int]$matches[2], 255)
+              $patch = [Math]::Min([int]$matches[3], 65535)
               $Version = "$major.$minor.$patch.0"
           } else {
               # Fallback version
