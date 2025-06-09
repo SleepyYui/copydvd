@@ -73,6 +73,21 @@ fi
 # Set executable permissions
 chmod +x "$BUNDLE_NAME/Contents/MacOS/copydvd"
 
+# Fix permissions for the entire bundle
+find "$BUNDLE_NAME" -type f -exec chmod 644 {} \;
+find "$BUNDLE_NAME" -type d -exec chmod 755 {} \;
+chmod +x "$BUNDLE_NAME/Contents/MacOS/copydvd"
+
+# Remove quarantine attributes (required for distribution)
+echo "Removing quarantine attributes..."
+xattr -cr "$BUNDLE_NAME" 2>/dev/null || true
+
+# Try to sign the app if we're on macOS (will fail in CI but works locally)
+if command -v codesign >/dev/null 2>&1; then
+    echo "Attempting to sign the app bundle..."
+    codesign --force --deep --sign - "$BUNDLE_NAME" 2>/dev/null || echo "Code signing failed (normal in CI)"
+fi
+
 echo "App bundle created successfully: $BUNDLE_NAME"
 echo "You can now run the app by double-clicking it or using: open '$BUNDLE_NAME'"
 echo ""
