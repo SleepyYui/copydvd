@@ -643,7 +643,7 @@ impl CopyDvdApp {
                 }
 
                 // Also check user-specific mount points in /run/media
-                if mount_base == "/run/media" {
+                if *mount_base == "/run/media" {
                     if let Ok(users) = std::fs::read_dir(mount_base) {
                         for user_entry in users.flatten() {
                             if let Ok(user_dirs) = std::fs::read_dir(user_entry.path()) {

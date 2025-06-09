@@ -117,19 +117,25 @@ mod tests {
             draft: false,
             assets: vec![
                 Asset {
-                    name: "copydvd-x86_64-pc-windows-msvc.exe".to_string(),
+                    name: "copydvd-windows-msvc.exe".to_string(),
                     download_url: "https://example.com/windows.exe".to_string(),
                     size: 1024,
                     content_type: "application/octet-stream".to_string(),
                 },
                 Asset {
                     name: "copydvd-x86_64-apple-darwin".to_string(),
-                    download_url: "https://example.com/macos".to_string(),
+                    download_url: "https://example.com/macos-x86".to_string(),
                     size: 1024,
                     content_type: "application/octet-stream".to_string(),
                 },
                 Asset {
-                    name: "CopyDVD-x86_64-pc-windows-msvc.msi".to_string(),
+                    name: "copydvd-aarch64-apple-darwin".to_string(),
+                    download_url: "https://example.com/macos-arm".to_string(),
+                    size: 1024,
+                    content_type: "application/octet-stream".to_string(),
+                },
+                Asset {
+                    name: "CopyDVD-windows-msvc.msi".to_string(),
                     download_url: "https://example.com/installer.msi".to_string(),
                     size: 2048,
                     content_type: "application/octet-stream".to_string(),
@@ -156,7 +162,7 @@ mod tests {
         // Test that the GitHub API URL is correctly formed
         assert_eq!(
             GITHUB_API_RELEASES,
-            "https://api.github.com/repos/dvd-ripper/copydvd/releases"
+            "https://api.github.com/repos/sleepyyui/copydvd/releases"
         );
     }
 
