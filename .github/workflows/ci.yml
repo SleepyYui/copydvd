@@ -292,6 +292,33 @@ jobs:
           
           $BinaryPath = "target\${{ matrix.target }}\release\copydvd.exe"
           
+          # Copy icon file for the installer
+          Write-Host "Setting up icon for installer..."
+          
+          # Try different icon files in order of preference
+          $IconSources = @(
+            "resources\icons\icon-32.png",
+            "resources\icons\icon-16.png", 
+            "resources\icons\icon-64.png",
+            "resources\icons\icon-128.png"
+          )
+          
+          $IconCreated = $false
+          foreach ($IconSource in $IconSources) {
+            if (Test-Path $IconSource) {
+              Copy-Item $IconSource "copydvd-icon.ico"
+              Write-Host "✅ Icon copied from $IconSource"
+              $IconCreated = $true
+              break
+            }
+          }
+          
+          if (-not $IconCreated) {
+            Write-Host "❌ Warning: No icon files found, creating placeholder"
+            # Create an empty file to prevent WiX errors
+            New-Item -Path "copydvd-icon.ico" -ItemType File -Force
+          }
+          
           # Create WiX source file
           $WixSource = @"
           <?xml version="1.0" encoding="UTF-8"?>
@@ -314,14 +341,20 @@ jobs:
                 <Directory Id="ProgramMenuFolder">
                   <Directory Id="ApplicationProgramsFolder" Name="Copy DVD"/>
                 </Directory>
+                <Directory Id="DesktopFolder" />
               </Directory>
+              
+              <Icon Id="CopyDVDIcon" SourceFile="copydvd-icon.ico" />
               
               <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
                 <Component Id="MainExecutable" Guid="87654321-4321-4321-4321-210987654321">
                   <File Id="CopyDVDExe" Source="$BinaryPath" KeyPath="yes">
                     <Shortcut Id="ApplicationStartMenuShortcut" Directory="ApplicationProgramsFolder" 
                               Name="Copy DVD" WorkingDirectory="INSTALLFOLDER" 
-                              Advertise="yes" />
+                              Icon="CopyDVDIcon" Advertise="yes" />
+                    <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" 
+                              Name="Copy DVD" WorkingDirectory="INSTALLFOLDER" 
+                              Icon="CopyDVDIcon" Advertise="yes" />
                   </File>
                 </Component>
               </ComponentGroup>
