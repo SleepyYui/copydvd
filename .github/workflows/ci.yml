@@ -170,7 +170,32 @@ jobs:
           $env:PATH = [Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [Environment]::GetEnvironmentVariable("PATH", "User")
           
           # Extract version from Cargo.toml
-          $Version = (Select-String -Path "Cargo.toml" -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          $CargoVersion = (Select-String -Path "Cargo.toml" -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          
+          # Convert version to WiX-compatible format (x.x.x.x)
+          # Format: 2025.6.9-253651 -> use modulo to fit within WiX limits
+          if ($CargoVersion -match '^(\d+)\.(\d+)\.(\d+)-(\d+)$') {
+              $major = [Math]::Min([int]$matches[1], 65534)
+              $minor = [Math]::Min([int]$matches[2], 65534)  
+              $patch = [Math]::Min([int]$matches[3], 65534)
+              # Use modulo to wrap large build numbers within valid range
+              $buildNum = [int]$matches[4]
+              $build = $buildNum % 65535  # Keep it under 65535
+              $Version = "$major.$minor.$patch.$build"
+          } elseif ($CargoVersion -match '^(\d+)\.(\d+)\.(\d+)$') {
+              # Handle standard semver format
+              $major = [Math]::Min([int]$matches[1], 65534)
+              $minor = [Math]::Min([int]$matches[2], 65534)
+              $patch = [Math]::Min([int]$matches[3], 65534)
+              $Version = "$major.$minor.$patch.0"
+          } else {
+              # Fallback version
+              $Version = "1.0.0.0"
+          }
+          
+          Write-Host "Cargo version: $CargoVersion"
+          Write-Host "WiX version: $Version"
+          
           $BinaryPath = "target\${{ matrix.target }}\release\copydvd.exe"
           
           # Create WiX source file
