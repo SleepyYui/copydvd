@@ -503,7 +503,6 @@ del "%~f0"
         // Make the script executable and hidden
         #[cfg(windows)]
         {
-            use std::os::windows::fs::MetadataExt;
             use tokio::process::Command;
 
             // Hide the script file
