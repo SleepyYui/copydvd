@@ -86,7 +86,7 @@ mod tests {
 
         #[cfg(target_os = "linux")]
         {
-            assert!(installer_patterns.len() > 0); // Should have various Linux package formats
+            assert!(!installer_patterns.is_empty()); // Should have various Linux package formats
             assert!(binary_patterns.iter().any(|p| p.contains("linux")));
         }
     }

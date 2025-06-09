@@ -602,7 +602,7 @@ del "%~f0"
         info!("Installing Linux DEB: {:?}", deb_path);
 
         let output = Command::new("pkexec")
-            .args(&["dpkg", "-i", &deb_path.to_string_lossy()])
+            .args(["dpkg", "-i", &deb_path.to_string_lossy()])
             .output()
             .await?;
 
@@ -625,7 +625,7 @@ del "%~f0"
         info!("Installing Linux RPM: {:?}", rpm_path);
 
         let output = Command::new("pkexec")
-            .args(&["rpm", "-U", &rpm_path.to_string_lossy()])
+            .args(["rpm", "-U", &rpm_path.to_string_lossy()])
             .output()
             .await?;
 
