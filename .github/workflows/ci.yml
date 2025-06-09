@@ -407,26 +407,51 @@ jobs:
                   ;;
               esac
               
-              # Find and rename binary
-              binary_file=$(find "$artifact_dir" -name "copydvd*" -type f -executable | head -1)
-              if [[ -n "$binary_file" ]]; then
+              # Debug: List all files in artifact directory
+              echo "📁 Files in $artifact_dir:"
+              find "$artifact_dir" -type f | head -10
+              
+              # Find and rename binary (try multiple approaches)
+              binary_file=""
+              
+              # Try different search patterns
+              if [[ "$target" == *"windows"* ]]; then
+                binary_file=$(find "$artifact_dir" -name "copydvd.exe" -type f | head -1)
+                [[ -z "$binary_file" ]] && binary_file=$(find "$artifact_dir" -name "copydvd*.exe" -type f | head -1)
+              else
+                binary_file=$(find "$artifact_dir" -name "copydvd" -type f | head -1)
+                [[ -z "$binary_file" ]] && binary_file=$(find "$artifact_dir" -name "copydvd*" -type f ! -name "*.zip" ! -name "*.msi" ! -name "*.app" | head -1)
+              fi
+              
+              if [[ -n "$binary_file" ]] && [[ -f "$binary_file" ]]; then
                 new_name="copydvd-${os_name}-${VERSION}${binary_ext}"
                 cp "$binary_file" "release/$new_name"
-                echo "✅ Prepared: $new_name"
+                echo "✅ Prepared binary: $new_name (from $(basename "$binary_file"))"
+              else
+                echo "❌ Binary not found for $target"
               fi
               
-              # Handle macOS app bundle with new naming
-              app_zip=$(find "$artifact_dir" -name "copydvd-*.app.zip" | head -1)
+              # Handle macOS app bundle with both old and new naming
+              app_zip=$(find "$artifact_dir" -name "*.app.zip" -type f | head -1)
               if [[ -n "$app_zip" ]]; then
-                cp "$app_zip" "release/"
-                echo "✅ Prepared: $(basename "$app_zip")"
+                # Rename to consistent format
+                new_app_name="copydvd-${os_name}-${VERSION}.app.zip"
+                cp "$app_zip" "release/$new_app_name"
+                echo "✅ Prepared app bundle: $new_app_name (from $(basename "$app_zip"))"
               fi
               
-              # Handle Windows MSI installer with new naming  
-              msi_file=$(find "$artifact_dir" -name "copydvd-windows-*.msi" | head -1)
+              # Handle Windows MSI installer with both old and new naming
+              msi_file=$(find "$artifact_dir" -name "*.msi" -type f | head -1)
               if [[ -n "$msi_file" ]]; then
-                cp "$msi_file" "release/"
-                echo "✅ Prepared: $(basename "$msi_file")"
+                # Rename to consistent format if needed
+                if [[ "$(basename "$msi_file")" != "copydvd-windows-${VERSION}.msi" ]]; then
+                  new_msi_name="copydvd-windows-${VERSION}.msi"
+                  cp "$msi_file" "release/$new_msi_name"
+                  echo "✅ Prepared MSI installer: $new_msi_name (from $(basename "$msi_file"))"
+                else
+                  cp "$msi_file" "release/"
+                  echo "✅ Prepared MSI installer: $(basename "$msi_file")"
+                fi
               fi
             fi
           done
@@ -600,8 +625,11 @@ jobs:
           
           ---
           
-          **Build Information**: $BUILD_TYPE • $(date -u '+%Y-%m-%d %H:%M UTC') • [\`${{ github.sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
           EOF
+          
+          # Add build information with proper variable expansion
+          echo "" >> final_release_notes.md
+          echo "**Build Information**: $BUILD_TYPE • $(date -u '+%Y-%m-%d %H:%M UTC') • [\`${{ github.sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})" >> final_release_notes.md
           
           echo "Final enhanced release notes created"
 
