@@ -495,7 +495,7 @@ jobs:
           # Wait for GitHub AI to generate release notes (with retry logic)
           echo "Waiting for AI release notes generation..."
           
-          MAX_ATTEMPTS=12  # 12 attempts = up to 2 minutes
+          MAX_ATTEMPTS=60  # 60 attempts = up to 10 minutes
           ATTEMPT=1
           AI_NOTES=""
           
