@@ -489,21 +489,84 @@ jobs:
             BUILD_TYPE="Manual Release"
           fi
           
-          # Create the release as draft first with enhanced AI context
+          # Generate release notes using the dedicated API endpoint - 100% reliable!
+          echo "📝 Generating AI release notes using GitHub's dedicated API..."
+          
+          # Prepare data for release notes generation
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            GENERATE_NOTES_DATA=$(cat << EOF
+            {
+              "tag_name": "v${{ steps.version.outputs.version }}",
+              "target_commitish": "${{ github.sha }}",
+              "previous_tag_name": "$PREVIOUS_TAG"
+            }
+            EOF
+            )
+          else
+            GENERATE_NOTES_DATA=$(cat << EOF
+            {
+              "tag_name": "v${{ steps.version.outputs.version }}",
+              "target_commitish": "${{ github.sha }}"
+            }
+            EOF
+            )
+          fi
+          
+          echo "Calling GitHub's release notes generation API..."
+          
+          # Call the dedicated generate-notes endpoint
+          NOTES_RESPONSE=$(curl -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${{ github.repository }}/releases/generate-notes \
+            -d "$GENERATE_NOTES_DATA")
+          
+          echo "Raw API response:"
+          echo "$NOTES_RESPONSE" | jq .
+          
+          # Extract the generated release notes
+          AI_NOTES=$(echo "$NOTES_RESPONSE" | jq -r '.body // ""')
+          GENERATED_NAME=$(echo "$NOTES_RESPONSE" | jq -r '.name // ""')
+          
+          # Validate we got good content
+          if [[ -n "$AI_NOTES" ]] && [[ ${#AI_NOTES} -gt 50 ]]; then
+            echo "✅ Successfully generated ${#AI_NOTES} characters of AI release notes!"
+            if [[ -n "$GENERATED_NAME" ]]; then
+              echo "📋 Generated title: $GENERATED_NAME"
+            fi
+          else
+            echo "❌ API call failed or returned insufficient content"
+            echo "Response: $NOTES_RESPONSE"
+            
+            # Fallback to basic notes if API completely fails
+            AI_NOTES="## What's Changed
+
+          This release includes the latest updates and improvements to CopyDVD.
+          
+          **Recent Changes:**
+          $(git log --oneline "$PREVIOUS_TAG..HEAD" 2>/dev/null || git log --oneline -5)
+          
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...v${{ steps.version.outputs.version }}"
+            
+            echo "⚠️ Using fallback release notes with commit list"
+          fi
+          
+          # Now create the release with the generated notes
           RELEASE_DATA=$(cat << EOF
           {
             "tag_name": "v${{ steps.version.outputs.version }}",
-            "name": "CopyDVD v${{ steps.version.outputs.version }}",
-            "body": "🤖 Generating AI-powered release notes...\n\nGitHub Copilot is analyzing code changes for comprehensive release notes.",
+            "name": "$(if [[ -n "$GENERATED_NAME" ]]; then echo "$GENERATED_NAME"; else echo "CopyDVD v${{ steps.version.outputs.version }}"; fi)",
+            "body": $(echo "$AI_NOTES" | jq -Rs .),
             "draft": true,
             "prerelease": ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }},
-            "generate_release_notes": true,
             "target_commitish": "${{ github.sha }}"
           }
           EOF
           )
           
-          # Create draft release with AI generation
+          # Create the release with the AI-generated content
           RELEASE_RESPONSE=$(curl -L \
             -X POST \
             -H "Accept: application/vnd.github+json" \
@@ -512,52 +575,10 @@ jobs:
             https://api.github.com/repos/${{ github.repository }}/releases \
             -d "$RELEASE_DATA")
           
-          echo "Draft release created, extracting AI-generated notes..."
-          
-          # Extract release ID first
+          # Extract release ID
           RELEASE_ID=$(echo "$RELEASE_RESPONSE" | jq -r '.id // ""')
           
-          # Wait for GitHub AI to generate release notes (with retry logic)
-          echo "Waiting for AI release notes generation..."
-          
-          MAX_ATTEMPTS=60  # 60 attempts = up to 10 minutes
-          ATTEMPT=1
-          AI_NOTES=""
-          
-          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Checking if AI notes are ready..."
-            
-            # Fetch the release to check AI generation status
-            UPDATED_RELEASE=$(curl -s -L \
-              -H "Accept: application/vnd.github+json" \
-              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID)
-            
-            # Extract the current body
-            CURRENT_BODY=$(echo "$UPDATED_RELEASE" | jq -r '.body // ""')
-            
-            # Check if AI has finished generating (no more placeholder text)
-            if [[ -n "$CURRENT_BODY" ]] && [[ "$CURRENT_BODY" != *"🤖 Generating AI-powered release notes"* ]] && [[ "$CURRENT_BODY" != *"GitHub Copilot is analyzing"* ]]; then
-              echo "✅ AI release notes generation completed!"
-              AI_NOTES="$CURRENT_BODY"
-              break
-            else
-              echo "⏳ AI still generating release notes... waiting 10 seconds"
-              sleep 10
-              ATTEMPT=$((ATTEMPT + 1))
-            fi
-          done
-          
-          # If we exhausted all attempts, use a fallback
-          if [[ -z "$AI_NOTES" ]] || [[ "$AI_NOTES" == *"🤖 Generating AI-powered release notes"* ]]; then
-            echo "⚠️ AI notes generation timed out, using fallback..."
-            AI_NOTES="## What's Changed
-          
-          This release includes the latest improvements and bug fixes to CopyDVD.
-          
-          For detailed changes, see: https://github.com/${{ github.repository }}/commits/v${{ steps.version.outputs.version }}"
-          fi
+          echo "🎉 Draft release created with AI-generated content!"
           
           echo "release_id=$RELEASE_ID" >> $GITHUB_OUTPUT
           echo "ai_notes<<EOF" >> $GITHUB_OUTPUT
