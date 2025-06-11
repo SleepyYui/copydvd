@@ -100,18 +100,23 @@ impl HandBrakeManager {
             .ok_or_else(|| {
                 AppError::HandbrakeError("Failed to determine cache directory".to_string())
             })?;
-        
+
         // Ensure the cache directory exists
         if !cache_dir.exists() {
-            info!("Creating HandBrake cache directory: {}", cache_dir.display());
+            info!(
+                "Creating HandBrake cache directory: {}",
+                cache_dir.display()
+            );
             fs::create_dir_all(&cache_dir)
-                .with_context(|| format!("Failed to create cache directory: {}", cache_dir.display()))
+                .with_context(|| {
+                    format!("Failed to create cache directory: {}", cache_dir.display())
+                })
                 .map_err(|e| {
                     warn!("Failed to create cache directory: {}", e);
                     AppError::HandbrakeError(e.to_string())
                 })?;
         }
-        
+
         Ok(cache_dir)
     }
 
@@ -427,7 +432,9 @@ impl HandBrakeManager {
                     if !parent.exists() {
                         info!("Creating cache directory: {}", parent.display());
                         fs::create_dir_all(parent)
-                            .with_context(|| format!("Failed to create cache directory: {}", parent.display()))
+                            .with_context(|| {
+                                format!("Failed to create cache directory: {}", parent.display())
+                            })
                             .map_err(|e| {
                                 warn!("Failed to create cache directory: {}", e);
                                 AppError::HandbrakeError(e.to_string())
