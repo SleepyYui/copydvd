@@ -46,12 +46,12 @@ This project uses multiple focused workflows that run in parallel for better per
 - 🚀 Creates GitHub release with assets
 - **Runtime**: ~2-3 minutes
 
-### 6. `auto-pr-review.yml` - Automatic Copilot Review
-**Triggers**: PRs from `v2-dev` to `v2`
-- 🤖 Auto-triggers GitHub Copilot PR analysis
-- 📝 Posts @github-copilot review request automatically
-- 📊 Requests impact assessment and risk analysis
-- **Runtime**: ~30 seconds
+### 6. GitHub Copilot PR Summary (Manual)
+**Triggers**: Manual activation in PR interface
+- 🤖 Click "Summary" button in GitHub PR interface  
+- 📊 Automatic code analysis and suggestions
+- 🔍 Built-in risk assessment and impact analysis
+- **Activation**: Manual click required (no reliable automation available)
 
 ## Parallel Execution Flow
 
@@ -93,11 +93,11 @@ Push to v2 branch
 
 ## Workflow Matrix
 
-| Branch/Action | Quality | Build | Installers | Release | Auto Copilot Review |
-|---------------|---------|-------|------------|---------|---------------------|
+| Branch/Action | Quality | Build | Installers | Release | Copilot Review |
+|---------------|---------|-------|------------|---------|----------------|
 | `v2-dev` push | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `v2` push | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `v2-dev → v2` PR | ❌ | ❌ | ❌ | ❌ | ✅ (automatic) |
+| `v2-dev → v2` PR | ❌ | ❌ | ❌ | ❌ | ✅ (manual) |
 
 **Note**: PRs don't trigger quality checks since they already ran on the source branch push.
 
@@ -106,5 +106,5 @@ Push to v2 branch
 - **Quality Status**: Shows immediately on PR/push
 - **Build Progress**: Individual status per platform  
 - **Release Status**: Clear pipeline progression
-- **Auto PR Review**: Automatic Copilot analysis for production PRs
+- **PR Review**: Manual GitHub Copilot summary (click "Summary" button)
 - **Artifact Downloads**: Available per workflow completion
