@@ -46,12 +46,12 @@ This project uses multiple focused workflows that run in parallel for better per
 - 🚀 Creates GitHub release with assets
 - **Runtime**: ~2-3 minutes
 
-### 6. `pr-summary.yml` - PR Analysis
-**Triggers**: PRs from `v2-dev` to `v2`
-- 🤖 AI-generated PR summaries via GitHub Copilot
-- 📊 Changed files analysis and impact assessment
-- 🔍 Risk analysis and testing recommendations
-- **Runtime**: ~1-2 minutes
+### 6. GitHub Copilot PR Summary (Built-in)
+**Triggers**: All PRs (native GitHub feature)
+- 🤖 Native GitHub Copilot PR summary and review
+- 📊 Automatic code analysis and suggestions
+- 🔍 Built-in risk assessment and impact analysis
+- **Activation**: Click "Summary" button in PR interface
 
 ## Parallel Execution Flow
 
@@ -92,16 +92,16 @@ Push to v2 branch
 
 ## Workflow Matrix
 
-| Branch/Action | Quality | Build | Installers | Release | PR Summary |
-|---------------|---------|-------|------------|---------|------------|
+| Branch/Action | Quality | Build | Installers | Release | Copilot Review |
+|---------------|---------|-------|------------|---------|----------------|
 | `v2-dev` push | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `v2` push | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `v2-dev → v2` PR | ✅ | ❌ | ❌ | ❌ | ✅ |
+| `v2-dev → v2` PR | ✅ | ❌ | ❌ | ❌ | ✅ (built-in) |
 
 ## Monitoring
 
 - **Quality Status**: Shows immediately on PR/push
 - **Build Progress**: Individual status per platform  
 - **Release Status**: Clear pipeline progression
-- **PR Analysis**: Automatic summaries for production PRs
+- **PR Review**: Native GitHub Copilot summary and analysis
 - **Artifact Downloads**: Available per workflow completion
