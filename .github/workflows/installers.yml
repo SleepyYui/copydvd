@@ -1,8 +1,6 @@
 name: Create Installers
 
 on:
-  push:
-    branches: [v2]
   workflow_run:
     workflows: ["Build Binaries"]
     types: [completed]
@@ -12,7 +10,7 @@ jobs:
   create-macos-pkg:
     name: Create macOS PKG Installer
     runs-on: macos-latest
-    if: github.event_name == 'push' || github.event.workflow_run.conclusion == 'success'
+    if: github.event.workflow_run.conclusion == 'success'
     strategy:
       matrix:
         target: [x86_64-apple-darwin, aarch64-apple-darwin]
@@ -27,6 +25,8 @@ jobs:
         with:
           name: binary-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
 
       - name: Get version
         id: version
@@ -48,7 +48,7 @@ jobs:
   create-windows-msi:
     name: Create Windows MSI Installer
     runs-on: windows-latest
-    if: github.event_name == 'push' || github.event.workflow_run.conclusion == 'success'
+    if: github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -60,6 +60,8 @@ jobs:
         with:
           name: binary-x86_64-pc-windows-msvc
           path: target/x86_64-pc-windows-msvc/release/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
 
       - name: Get version
         id: version
