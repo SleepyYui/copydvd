@@ -14,7 +14,8 @@ This project uses multiple focused workflows that run in parallel for better per
 - ✅ Code formatting (`cargo fmt`)
 - ✅ Linting (`cargo clippy`) 
 - ✅ Tests (`cargo test`)
-- **Runtime**: ~3-5 minutes
+- 🚀 APT package caching + enhanced Rust cache
+- **Runtime**: ~2-3 minutes (first run ~5 minutes)
 
 ### 2. `version.yml` - Version Management  
 **Triggers**: Pushes to `v2` branch, tags, manual dispatch
@@ -29,8 +30,9 @@ This project uses multiple focused workflows that run in parallel for better per
   - Linux x86_64
   - macOS Intel & Apple Silicon  
   - Windows x86_64
+- 🚀 Platform-specific dependency caching
 - 📦 Uploads binary artifacts
-- **Runtime**: ~8-12 minutes (parallel)
+- **Runtime**: ~6-10 minutes (first run ~12 minutes)
 
 ### 4. `installers.yml` - Package Creation
 **Triggers**: After binaries are built (`v2` **only**)
@@ -84,12 +86,13 @@ Push to v2 branch
 ## Key Improvements
 
 ✅ **Parallel Execution**: Multiple jobs run simultaneously  
-✅ **Faster Feedback**: Quality checks finish in 3-5 minutes  
+✅ **Faster Feedback**: Quality checks finish in 2-3 minutes (with caching)  
 ✅ **Better Isolation**: Each workflow has a single responsibility  
 ✅ **Easier Debugging**: Focused logs per workflow  
 ✅ **Maintainable**: Smaller, focused files  
 ✅ **Artifact Management**: Clean separation of build outputs  
 ✅ **No Duplication**: Quality checks run once per push, not on PRs  
+✅ **Aggressive Caching**: APT packages, Rust toolchain, and dependencies cached  
 
 ## Workflow Matrix
 
@@ -108,3 +111,30 @@ Push to v2 branch
 - **Release Status**: Clear pipeline progression
 - **PR Review**: Manual GitHub Copilot summary (click "Summary" button)
 - **Artifact Downloads**: Available per workflow completion
+
+## Local Development
+
+For fast local development with consistent dependencies:
+
+```bash
+# Run quality checks (uses Docker with cached dependencies)
+./scripts/local-dev.sh quality
+
+# Build binary 
+./scripts/local-dev.sh build
+
+# Run specific tests
+./scripts/local-dev.sh test handbrake
+
+# Interactive development shell
+./scripts/local-dev.sh shell
+
+# Clean caches
+./scripts/local-dev.sh clean
+```
+
+**Benefits**:
+- ⚡ **Instant startup**: Cached Docker image with all dependencies
+- 🔄 **Consistent environment**: Same as CI/CD 
+- 💾 **Persistent caches**: Cargo registry and target cache survive container restarts
+- 🐳 **Isolated**: No dependency conflicts with host system
