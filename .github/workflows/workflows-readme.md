@@ -10,7 +10,7 @@ This project uses multiple focused workflows that run in parallel for better per
 ## Workflow Overview
 
 ### 1. `quality.yml` - Code Quality Checks
-**Triggers**: Pushes/PRs to `v2`, `v2-dev`
+**Triggers**: Pushes to `v2`, `v2-dev` (not PRs to avoid duplication)
 - ✅ Code formatting (`cargo fmt`)
 - ✅ Linting (`cargo clippy`) 
 - ✅ Tests (`cargo test`)
@@ -89,6 +89,7 @@ Push to v2 branch
 ✅ **Easier Debugging**: Focused logs per workflow  
 ✅ **Maintainable**: Smaller, focused files  
 ✅ **Artifact Management**: Clean separation of build outputs  
+✅ **No Duplication**: Quality checks run once per push, not on PRs  
 
 ## Workflow Matrix
 
@@ -96,7 +97,9 @@ Push to v2 branch
 |---------------|---------|-------|------------|---------|---------------------|
 | `v2-dev` push | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `v2` push | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `v2-dev → v2` PR | ✅ | ❌ | ❌ | ❌ | ✅ (automatic) |
+| `v2-dev → v2` PR | ❌ | ❌ | ❌ | ❌ | ✅ (automatic) |
+
+**Note**: PRs don't trigger quality checks since they already ran on the source branch push.
 
 ## Monitoring
 
