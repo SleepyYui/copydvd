@@ -46,12 +46,12 @@ This project uses multiple focused workflows that run in parallel for better per
 - 🚀 Creates GitHub release with assets
 - **Runtime**: ~2-3 minutes
 
-### 6. GitHub Copilot PR Summary (Built-in)
-**Triggers**: All PRs (native GitHub feature)
-- 🤖 Native GitHub Copilot PR summary and review
-- 📊 Automatic code analysis and suggestions
-- 🔍 Built-in risk assessment and impact analysis
-- **Activation**: Click "Summary" button in PR interface
+### 6. `auto-pr-review.yml` - Automatic Copilot Review
+**Triggers**: PRs from `v2-dev` to `v2`
+- 🤖 Auto-triggers GitHub Copilot PR analysis
+- 📝 Posts @github-copilot review request automatically
+- 📊 Requests impact assessment and risk analysis
+- **Runtime**: ~30 seconds
 
 ## Parallel Execution Flow
 
@@ -92,16 +92,16 @@ Push to v2 branch
 
 ## Workflow Matrix
 
-| Branch/Action | Quality | Build | Installers | Release | Copilot Review |
-|---------------|---------|-------|------------|---------|----------------|
+| Branch/Action | Quality | Build | Installers | Release | Auto Copilot Review |
+|---------------|---------|-------|------------|---------|---------------------|
 | `v2-dev` push | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `v2` push | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `v2-dev → v2` PR | ✅ | ❌ | ❌ | ❌ | ✅ (built-in) |
+| `v2-dev → v2` PR | ✅ | ❌ | ❌ | ❌ | ✅ (automatic) |
 
 ## Monitoring
 
 - **Quality Status**: Shows immediately on PR/push
 - **Build Progress**: Individual status per platform  
 - **Release Status**: Clear pipeline progression
-- **PR Review**: Native GitHub Copilot summary and analysis
+- **Auto PR Review**: Automatic Copilot analysis for production PRs
 - **Artifact Downloads**: Available per workflow completion
