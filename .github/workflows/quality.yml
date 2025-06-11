@@ -2,9 +2,9 @@ name: Code Quality
 
 on:
   push:
-    branches: [v2, main]
+    branches: [v2, v2-dev, main]
   pull_request:
-    branches: [v2, main]
+    branches: [v2, v2-dev, main]
 
 env:
   CARGO_TERM_COLOR: always

@@ -2,10 +2,16 @@
 
 This project uses multiple focused workflows that run in parallel for better performance and maintainability.
 
+## Branch Strategy
+
+- **`v2-dev`**: Development branch - **Quality checks only**
+- **`v2`**: Production branch - **Full pipeline** (quality → build → installers → release)
+- **`main`**: Legacy branch - **Quality checks only**
+
 ## Workflow Overview
 
 ### 1. `quality.yml` - Code Quality Checks
-**Triggers**: All pushes and PRs
+**Triggers**: Pushes/PRs to `v2`, `v2-dev`, `main`
 - ✅ Code formatting (`cargo fmt`)
 - ✅ Linting (`cargo clippy`) 
 - ✅ Tests (`cargo test`)
@@ -19,7 +25,7 @@ This project uses multiple focused workflows that run in parallel for better per
 - **Runtime**: ~1 minute
 
 ### 3. `build.yml` - Binary Compilation
-**Triggers**: After quality checks pass, pushes to `v2`
+**Triggers**: After quality checks pass, pushes to `v2` **only**
 - 🔨 Builds for all platforms in parallel:
   - Linux x86_64
   - macOS Intel & Apple Silicon  
@@ -28,14 +34,14 @@ This project uses multiple focused workflows that run in parallel for better per
 - **Runtime**: ~8-12 minutes (parallel)
 
 ### 4. `installers.yml` - Package Creation
-**Triggers**: After binaries are built
+**Triggers**: After binaries are built (`v2` **only**)
 - 📦 Creates macOS PKG installers (both architectures)
 - 📦 Creates Windows MSI installer
 - 🔧 Handles platform-specific packaging
 - **Runtime**: ~5-8 minutes (parallel)
 
 ### 5. `release.yml` - GitHub Release
-**Triggers**: After installers are created
+**Triggers**: After installers are created (`v2` **only**)
 - 🤖 Generates AI-powered release notes
 - 📋 Collects all artifacts
 - 🚀 Creates GitHub release with assets
