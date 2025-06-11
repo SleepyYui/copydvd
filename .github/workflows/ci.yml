@@ -372,6 +372,8 @@ jobs:
               <Feature Id="ProductFeature" Title="Copy DVD" Level="1">
                 <ComponentGroupRef Id="ProductComponents" />
                 <ComponentRef Id="StartMenuComponent" />
+                <ComponentRef Id="StartMenuShortcutComponent" />
+                <ComponentRef Id="DesktopShortcutComponent" />
               </Feature>
               
               <Directory Id="TARGETDIR" Name="SourceDir">
@@ -388,16 +390,24 @@ jobs:
               
               <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
                 <Component Id="MainExecutable" Guid="87654321-4321-4321-4321-210987654321">
-                  <File Id="CopyDVDExe" Source="$BinaryPath" KeyPath="yes">
-                    <Shortcut Id="ApplicationStartMenuShortcut" Directory="ApplicationProgramsFolder" 
-                              Name="Copy DVD" WorkingDirectory="INSTALLFOLDER" 
-                              ${IconAttribute}Advertise="yes" />
-                    <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" 
-                              Name="Copy DVD" WorkingDirectory="INSTALLFOLDER" 
-                              ${IconAttribute}Advertise="yes" />
-                  </File>
+                  <File Id="CopyDVDExe" Source="$BinaryPath" KeyPath="yes" />
                 </Component>
               </ComponentGroup>
+              
+              <Component Id="StartMenuShortcutComponent" Directory="ApplicationProgramsFolder" Guid="22222222-2222-2222-2222-222222222222">
+                <Shortcut Id="ApplicationStartMenuShortcut" Target="[INSTALLFOLDER]copydvd.exe" 
+                          Name="Copy DVD" WorkingDirectory="INSTALLFOLDER" 
+                          ${IconAttribute}Advertise="no" />
+                <RemoveFolder Id="ApplicationProgramsFolderRemove" On="uninstall" />
+                <RegistryValue Root="HKCU" Key="Software\CopyDVD\Shortcuts" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
+              </Component>
+              
+              <Component Id="DesktopShortcutComponent" Directory="DesktopFolder" Guid="33333333-3333-3333-3333-333333333333">
+                <Shortcut Id="DesktopShortcut" Target="[INSTALLFOLDER]copydvd.exe" 
+                          Name="Copy DVD" WorkingDirectory="INSTALLFOLDER" 
+                          ${IconAttribute}Advertise="no" />
+                <RegistryValue Root="HKCU" Key="Software\CopyDVD\Shortcuts" Name="Desktop" Type="integer" Value="1" KeyPath="yes" />
+              </Component>
               
               <Component Id="StartMenuComponent" Directory="ApplicationProgramsFolder" Guid="11111111-1111-1111-1111-111111111111">
                 <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall" />

@@ -291,6 +291,15 @@ pkgbuild --root "$PKG_ROOT" \
          --install-location "/" \
          "$PKG_TEMP_DIR/copydvd-component.pkg"
 
+# Check if component package was created successfully
+if [[ ! -f "$PKG_TEMP_DIR/copydvd-component.pkg" ]]; then
+    echo "❌ Component package creation failed"
+    rm -rf "$PKG_TEMP_DIR"
+    exit 1
+fi
+
+echo "Component package size: $(du -h "$PKG_TEMP_DIR/copydvd-component.pkg" | cut -f1)"
+
 # Build the final installer package with GUI
 echo "Building installer package: $PKG_NAME"
 productbuild --distribution "$PKG_TEMP_DIR/Distribution.xml" \

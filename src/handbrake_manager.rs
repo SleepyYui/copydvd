@@ -95,11 +95,24 @@ impl HandBrakeManager {
     }
 
     fn get_cache_dir() -> Result<PathBuf> {
-        ProjectDirs::from("com", "sleepyyui", "copydvd")
+        let cache_dir = ProjectDirs::from("com", "sleepyyui", "copydvd")
             .map(|proj_dirs| proj_dirs.cache_dir().join("handbrake"))
             .ok_or_else(|| {
                 AppError::HandbrakeError("Failed to determine cache directory".to_string())
-            })
+            })?;
+        
+        // Ensure the cache directory exists
+        if !cache_dir.exists() {
+            info!("Creating HandBrake cache directory: {}", cache_dir.display());
+            fs::create_dir_all(&cache_dir)
+                .with_context(|| format!("Failed to create cache directory: {}", cache_dir.display()))
+                .map_err(|e| {
+                    warn!("Failed to create cache directory: {}", e);
+                    AppError::HandbrakeError(e.to_string())
+                })?;
+        }
+        
+        Ok(cache_dir)
     }
 
     pub async fn get_handbrake_path(&mut self) -> Result<PathBuf> {
@@ -408,6 +421,19 @@ impl HandBrakeManager {
                 info!("Found HandBrake executable: {}", file_name);
                 let target_path = self.cache_dir.join(&platform_info.binary_name);
                 info!("Extracting to: {}", target_path.display());
+
+                // Ensure cache directory exists
+                if let Some(parent) = target_path.parent() {
+                    if !parent.exists() {
+                        info!("Creating cache directory: {}", parent.display());
+                        fs::create_dir_all(parent)
+                            .with_context(|| format!("Failed to create cache directory: {}", parent.display()))
+                            .map_err(|e| {
+                                warn!("Failed to create cache directory: {}", e);
+                                AppError::HandbrakeError(e.to_string())
+                            })?;
+                    }
+                }
 
                 let mut output = fs::File::create(&target_path)
                     .with_context(|| format!("Failed to create file: {}", target_path.display()))
