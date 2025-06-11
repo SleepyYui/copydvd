@@ -1,0 +1,260 @@
+name: Create Release
+
+on:
+  workflow_run:
+    workflows: ["Create Installers", "Version Management"]
+    types: [completed]
+    branches: [v2]
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep "^version = " Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: $VERSION"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release/
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          echo "📁 Available artifacts:"
+          find artifacts/ -type f | head -20
+          
+          # Process binary artifacts
+          for artifact_dir in artifacts/binary-*; do
+            if [[ -d "$artifact_dir" ]]; then
+              target=$(basename "$artifact_dir" | sed 's/binary-//')
+              echo "Processing $target..."
+              
+              case "$target" in
+                "x86_64-pc-windows-msvc")
+                  os_name="windows"
+                  binary_ext=".exe"
+                  ;;
+                "x86_64-apple-darwin")
+                  os_name="macos-intel" 
+                  binary_ext=""
+                  ;;
+                "aarch64-apple-darwin")
+                  os_name="macos-arm"
+                  binary_ext=""
+                  ;;
+                "x86_64-unknown-linux-gnu")
+                  os_name="linux"
+                  binary_ext=""
+                  ;;
+                *)
+                  os_name="$target"
+                  binary_ext=""
+                  ;;
+              esac
+              
+              # Find and rename binary
+              if [[ "$target" == *"windows"* ]]; then
+                binary_file=$(find "$artifact_dir" -name "copydvd.exe" -type f | head -1)
+              else
+                binary_file=$(find "$artifact_dir" -name "copydvd" -type f | head -1)
+              fi
+              
+              if [[ -n "$binary_file" ]] && [[ -f "$binary_file" ]]; then
+                new_name="copydvd-${os_name}-${VERSION}${binary_ext}"
+                cp "$binary_file" "release/$new_name"
+                echo "✅ Prepared binary: $new_name"
+              fi
+            fi
+          done
+          
+          # Process installer artifacts
+          for pkg_dir in artifacts/macos-pkg-*; do
+            if [[ -d "$pkg_dir" ]]; then
+              target=$(basename "$pkg_dir" | sed 's/macos-pkg-//')
+              case "$target" in
+                "x86_64-apple-darwin") os_name="macos-intel" ;;
+                "aarch64-apple-darwin") os_name="macos-arm" ;;
+              esac
+              
+              pkg_file=$(find "$pkg_dir" -name "*.pkg" -type f | head -1)
+              if [[ -n "$pkg_file" ]]; then
+                new_pkg_name="copydvd-${os_name}-${VERSION}.pkg"
+                cp "$pkg_file" "release/$new_pkg_name"
+                echo "✅ Prepared PKG installer: $new_pkg_name"
+              fi
+            fi
+          done
+          
+          # Process Windows MSI
+          if [[ -d "artifacts/windows-msi" ]]; then
+            msi_file=$(find "artifacts/windows-msi" -name "*.msi" -type f | head -1)
+            if [[ -n "$msi_file" ]]; then
+              cp "$msi_file" "release/"
+              echo "✅ Prepared MSI installer: $(basename "$msi_file")"
+            fi
+          fi
+          
+          echo "📦 Release assets prepared:"
+          ls -la release/
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          PREVIOUS_TAG=""
+          if git describe --tags --abbrev=0 2>/dev/null > /dev/null; then
+            PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || "")
+          fi
+          
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            GENERATE_NOTES_DATA=$(cat << EOF
+            {
+              "tag_name": "v${{ steps.version.outputs.version }}",
+              "target_commitish": "${{ github.sha }}",
+              "previous_tag_name": "$PREVIOUS_TAG"
+            }
+          EOF
+          )
+          else
+            GENERATE_NOTES_DATA=$(cat << EOF
+            {
+              "tag_name": "v${{ steps.version.outputs.version }}",
+              "target_commitish": "${{ github.sha }}"
+            }
+          EOF
+          )
+          fi
+          
+          echo "Calling GitHub's release notes generation API..."
+          NOTES_RESPONSE=$(curl -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${{ github.repository }}/releases/generate-notes \
+            -d "$GENERATE_NOTES_DATA")
+          
+          AI_NOTES=$(echo "$NOTES_RESPONSE" | jq -r '.body // ""')
+          GENERATED_NAME=$(echo "$NOTES_RESPONSE" | jq -r '.name // ""')
+          
+          if [[ -n "$AI_NOTES" ]] && [[ ${#AI_NOTES} -gt 50 ]]; then
+            echo "✅ Successfully generated ${#AI_NOTES} characters of AI release notes!"
+          else
+            echo "❌ API call failed, using fallback release notes"
+            RECENT_COMMITS=$(git log --oneline "$PREVIOUS_TAG..HEAD" 2>/dev/null || git log --oneline -5)
+            AI_NOTES="## What's Changed
+
+This release includes the latest updates and improvements to CopyDVD.
+
+**Recent Changes:**
+$RECENT_COMMITS
+
+**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...v${{ steps.version.outputs.version }}"
+          fi
+          
+          RELEASE_TITLE="CopyDVD v${{ steps.version.outputs.version }}"
+          if [[ -n "$GENERATED_NAME" ]]; then
+            RELEASE_TITLE="$GENERATED_NAME"
+          fi
+          
+          # Determine if prerelease
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ "$VERSION" == *"alpha"* ]] || [[ "$VERSION" == *"beta"* ]] || [[ "$VERSION" == *"rc"* ]]; then
+            IS_PRERELEASE=true
+          else
+            IS_PRERELEASE=false
+          fi
+          
+          # Create enhanced release notes
+          cat > final_release_notes.md << EOF
+$AI_NOTES
+
+---
+
+## 💾 Downloads
+
+Choose the appropriate version for your operating system:
+
+| Platform | Architecture | Download | Features |
+|----------|-------------|----------|----------|
+| **Windows** | x64 | \`copydvd-windows-${{ steps.version.outputs.version }}.exe\` | Full (GUI + CLI) |
+| **macOS** | Intel | \`copydvd-macos-intel-${{ steps.version.outputs.version }}\` | Full (GUI + CLI) |
+| **macOS** | Apple Silicon | \`copydvd-macos-arm-${{ steps.version.outputs.version }}\` | Full (GUI + CLI) |
+| **Linux** | x64 | \`copydvd-linux-${{ steps.version.outputs.version }}\` | Full (GUI + CLI) |
+
+### 📦 Installers
+- \`copydvd-macos-intel-${{ steps.version.outputs.version }}.pkg\` - macOS PKG Installer (Intel) 
+- \`copydvd-macos-arm-${{ steps.version.outputs.version }}.pkg\` - macOS PKG Installer (Apple Silicon)
+- \`copydvd-windows-${{ steps.version.outputs.version }}.msi\` - Windows MSI Installer
+
+## 🚀 Quick Start
+
+### Windows
+1. Download the MSI installer or portable .exe
+2. Run the installer or executable directly
+
+### macOS  
+1. Download the appropriate .pkg installer for your Mac
+2. Double-click to install, then launch from Applications
+3. **First launch**: Right-click → Open → Click "Open" to bypass security warning
+
+### Linux
+1. Download the binary and make executable: \`chmod +x copydvd-linux-*\`
+2. Run: \`./copydvd-linux-*\`
+
+## Usage
+- **GUI Mode** (default): Launch without arguments
+- **CLI Mode**: Add \`--cli\` flag  
+- **Help**: Use \`--help\` for all options
+
+---
+
+**Build**: $(date -u '+%Y-%m-%d %H:%M UTC') • [\`${{ github.sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+EOF
+          
+          echo "release_title=$RELEASE_TITLE" >> $GITHUB_OUTPUT
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          release_name: ${{ steps.release_notes.outputs.release_title }}
+          body_path: final_release_notes.md
+          draft: false
+          prerelease: ${{ steps.release_notes.outputs.is_prerelease }}
+
+      - name: Upload release assets
+        run: |
+          for file in release/*; do
+            if [[ -f "$file" ]]; then
+              echo "Uploading $(basename "$file")..."
+              curl -L \
+                -X POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                -H "Content-Type: application/octet-stream" \
+                "${{ steps.create_release.outputs.upload_url }}?name=$(basename "$file")" \
+                --data-binary "@$file"
+            fi
+          done

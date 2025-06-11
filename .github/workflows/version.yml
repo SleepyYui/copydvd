@@ -1,0 +1,70 @@
+name: Version Management
+
+on:
+  push:
+    branches: [v2]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      force_release:
+        description: 'Force create release'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  version:
+    name: Generate Version
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/v2' || startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_release == 'true')
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: Generate version and update Cargo.toml
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "Using tag version: $VERSION"
+          else
+            YEAR=$(date +'%Y')
+            MONTH=$(date +'%-m')
+            DAY=$(date +'%-d')
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            PATCH_NUM=$((0x${SHORT_SHA}))
+            PATCH_NUM=$((PATCH_NUM % 999999))
+            VERSION="${YEAR}.${MONTH}.${DAY}-${PATCH_NUM}"
+            echo "Generated version: $VERSION"
+          fi
+          
+          echo "Updating Cargo.toml version to: $VERSION"
+          sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+          rm -f Cargo.toml.bak
+          
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+          if ! git diff --quiet Cargo.toml; then
+            echo "Committing version update..."
+            git add Cargo.toml
+            git commit -m "chore: bump version to $VERSION [skip ci]"
+            
+            if [[ "${{ github.ref }}" != refs/tags/* ]]; then
+              TAG_NAME="v$VERSION"
+              if ! git tag --list | grep -q "^$TAG_NAME$"; then
+                git tag "$TAG_NAME"
+                echo "Created new tag: $TAG_NAME"
+                git push origin HEAD:${{ github.ref_name }} || echo "Failed to push commit"
+                git push origin "$TAG_NAME" || echo "Failed to push tag"
+              fi
+            fi
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT

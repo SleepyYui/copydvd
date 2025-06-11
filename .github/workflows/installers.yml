@@ -1,0 +1,194 @@
+name: Create Installers
+
+on:
+  workflow_run:
+    workflows: ["Build Binaries"]
+    types: [completed]
+    branches: [v2]
+
+jobs:
+  create-macos-pkg:
+    name: Create macOS PKG Installer
+    runs-on: macos-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    strategy:
+      matrix:
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download binary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/
+
+      - name: Get version
+        id: version
+        run: echo "version=$(grep "^version = " Cargo.toml | sed 's/version = "\(.*\)"/\1/')" >> $GITHUB_OUTPUT
+
+      - name: Create macOS app bundle and PKG
+        run: |
+          chmod +x create_app_bundle.sh
+          chmod +x target/${{ matrix.target }}/release/copydvd
+          VERSION="${{ steps.version.outputs.version }}" ./create_app_bundle.sh ${{ matrix.target }}
+
+      - name: Upload PKG installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-pkg-${{ matrix.target }}
+          path: CopyDVD-*.pkg
+          if-no-files-found: ignore
+
+  create-windows-msi:
+    name: Create Windows MSI Installer
+    runs-on: windows-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download binary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-x86_64-pc-windows-msvc
+          path: target/x86_64-pc-windows-msvc/release/
+
+      - name: Get version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path "Cargo.toml" -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Create Windows MSI Installer
+        shell: pwsh
+        run: |
+          choco install wixtoolset -y
+          $env:PATH = [Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [Environment]::GetEnvironmentVariable("PATH", "User")
+          
+          $CargoVersion = "${{ steps.version.outputs.version }}"
+          $BinaryPath = "target\x86_64-pc-windows-msvc\release\copydvd.exe"
+          
+          # Convert version to WiX format
+          if ($CargoVersion -match '^(\d+)\.(\d+)\.(\d+)-(\d+)$') {
+              $yearPart = [int]$matches[1]
+              $major = $yearPart % 100
+              $minor = [Math]::Min([int]$matches[2], 255)
+              $patch = [Math]::Min([int]$matches[3], 65535)
+              $buildNum = [int]$matches[4]
+              $build = $buildNum % 65535
+              $Version = "$major.$minor.$patch.$build"
+          } else {
+              $Version = "1.0.0.0"
+          }
+          
+          # Create proper ICO file
+          $IconCreated = $false
+          $IconSources = @("resources\icons\icon-32.png", "resources\icons\icon-16.png")
+          
+          foreach ($IconSource in $IconSources) {
+            if (Test-Path $IconSource) {
+              try {
+                Add-Type -AssemblyName System.Drawing
+                $img = [System.Drawing.Image]::FromFile((Resolve-Path $IconSource))
+                $bitmap = New-Object System.Drawing.Bitmap($img)
+                $iconHandle = $bitmap.GetHicon()
+                $icon = [System.Drawing.Icon]::FromHandle($iconHandle)
+                $iconStream = [System.IO.File]::Create("copydvd-icon.ico")
+                $icon.Save($iconStream)
+                $iconStream.Close()
+                $icon.Dispose()
+                $bitmap.Dispose()
+                $img.Dispose()
+                $IconCreated = $true
+                break
+              } catch {
+                Write-Host "Failed to convert $IconSource to ICO: $_"
+              }
+            }
+          }
+          
+          $IconDeclaration = if ($IconCreated) { "              <Icon Id=`"CopyDVDIcon`" SourceFile=`"copydvd-icon.ico`" />" } else { "" }
+          $IconAttribute = if ($IconCreated) { "Icon=`"CopyDVDIcon`" " } else { "" }
+          
+          $WixSource = @"
+          <?xml version="1.0" encoding="UTF-8"?>
+          <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+            <Product Id="*" Name="Copy DVD" Language="1033" Version="$Version" Manufacturer="Copy DVD Team" UpgradeCode="12345678-1234-1234-1234-123456789012">
+              <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
+              <MajorUpgrade DowngradeErrorMessage="A newer version of Copy DVD is already installed." />
+              <MediaTemplate EmbedCab="yes" />
+              
+              <Feature Id="ProductFeature" Title="Copy DVD" Level="1">
+                <ComponentGroupRef Id="ProductComponents" />
+                <ComponentRef Id="StartMenuComponent" />
+                <ComponentRef Id="StartMenuShortcutComponent" />
+                <ComponentRef Id="DesktopShortcutComponent" />
+              </Feature>
+              
+              <Directory Id="TARGETDIR" Name="SourceDir">
+                <Directory Id="ProgramFilesFolder">
+                  <Directory Id="INSTALLFOLDER" Name="Copy DVD" />
+                </Directory>
+                <Directory Id="ProgramMenuFolder">
+                  <Directory Id="ApplicationProgramsFolder" Name="Copy DVD"/>
+                </Directory>
+                <Directory Id="DesktopFolder" />
+              </Directory>
+              
+          $IconDeclaration
+              
+              <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+                <Component Id="MainExecutable" Guid="87654321-4321-4321-4321-210987654321">
+                  <File Id="CopyDVDExe" Source="$BinaryPath" KeyPath="yes" />
+                </Component>
+              </ComponentGroup>
+              
+              <Component Id="StartMenuShortcutComponent" Directory="ApplicationProgramsFolder" Guid="22222222-2222-2222-2222-222222222222">
+                <Shortcut Id="ApplicationStartMenuShortcut" Target="[INSTALLFOLDER]copydvd.exe" 
+                          Name="Copy DVD" WorkingDirectory="INSTALLFOLDER" 
+                          ${IconAttribute}Advertise="no" />
+                <RemoveFolder Id="ApplicationProgramsFolderRemove" On="uninstall" />
+                <RegistryValue Root="HKCU" Key="Software\CopyDVD\Shortcuts" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
+              </Component>
+              
+              <Component Id="DesktopShortcutComponent" Directory="DesktopFolder" Guid="33333333-3333-3333-3333-333333333333">
+                <Shortcut Id="DesktopShortcut" Target="[INSTALLFOLDER]copydvd.exe" 
+                          Name="Copy DVD" WorkingDirectory="INSTALLFOLDER" 
+                          ${IconAttribute}Advertise="no" />
+                <RegistryValue Root="HKCU" Key="Software\CopyDVD\Shortcuts" Name="Desktop" Type="integer" Value="1" KeyPath="yes" />
+              </Component>
+              
+              <Component Id="StartMenuComponent" Directory="ApplicationProgramsFolder" Guid="11111111-1111-1111-1111-111111111111">
+                <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall" />
+                <RegistryValue Root="HKCU" Key="Software\CopyDVD" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+              </Component>
+            </Product>
+          </Wix>
+          "@
+          
+          $WixSource | Out-File -FilePath "CopyDVD.wxs" -Encoding UTF8
+          
+          & "C:\Program Files (x86)\WiX Toolset v3.14\bin\candle.exe" CopyDVD.wxs
+          
+          $MSI_NAME = "copydvd-windows-$CargoVersion.msi"
+          & "C:\Program Files (x86)\WiX Toolset v3.14\bin\light.exe" -out $MSI_NAME CopyDVD.wixobj
+          
+          if (Test-Path $MSI_NAME) {
+            Write-Host "MSI installer created successfully: $MSI_NAME"
+          } else {
+            Write-Error "Failed to create MSI installer"
+          }
+
+      - name: Upload MSI installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msi
+          path: copydvd-*.msi
+          if-no-files-found: ignore

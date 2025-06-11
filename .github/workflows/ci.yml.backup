@@ -646,14 +646,15 @@ jobs:
             echo "Response: $NOTES_RESPONSE"
             
             # Fallback to basic notes if API completely fails
+            RECENT_COMMITS=$(git log --oneline "$PREVIOUS_TAG..HEAD" 2>/dev/null || git log --oneline -5)
             AI_NOTES="## What's Changed
 
-          This release includes the latest updates and improvements to CopyDVD.
-          
-          **Recent Changes:**
-          $(git log --oneline "$PREVIOUS_TAG..HEAD" 2>/dev/null || git log --oneline -5)
-          
-          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...v${{ steps.version.outputs.version }}"
+This release includes the latest updates and improvements to CopyDVD.
+
+**Recent Changes:**
+$RECENT_COMMITS
+
+**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...v${{ steps.version.outputs.version }}"
             
             echo "⚠️ Using fallback release notes with commit list"
           fi
@@ -664,13 +665,20 @@ jobs:
             RELEASE_TITLE="$GENERATED_NAME"
           fi
           
+          # Determine if this is a prerelease
+          if [[ "${{ steps.version.outputs.version }}" == *"alpha"* ]] || [[ "${{ steps.version.outputs.version }}" == *"beta"* ]] || [[ "${{ steps.version.outputs.version }}" == *"rc"* ]]; then
+            IS_PRERELEASE=true
+          else
+            IS_PRERELEASE=false
+          fi
+          
           RELEASE_DATA=$(jq -n \
             --arg tag_name "v${{ steps.version.outputs.version }}" \
             --arg name "$RELEASE_TITLE" \
             --arg body "$AI_NOTES" \
             --arg target_commitish "${{ github.sha }}" \
             --argjson draft true \
-            --argjson prerelease ${{ contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }} \
+            --argjson prerelease "$IS_PRERELEASE" \
             '{
               tag_name: $tag_name,
               name: $name,
