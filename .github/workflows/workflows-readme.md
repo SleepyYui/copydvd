@@ -6,12 +6,11 @@ This project uses multiple focused workflows that run in parallel for better per
 
 - **`v2-dev`**: Development branch - **Quality checks only**
 - **`v2`**: Production branch - **Full pipeline** (quality → build → installers → release)
-- **`main`**: Legacy branch - **Quality checks only**
 
 ## Workflow Overview
 
 ### 1. `quality.yml` - Code Quality Checks
-**Triggers**: Pushes/PRs to `v2`, `v2-dev`, `main`
+**Triggers**: Pushes/PRs to `v2`, `v2-dev`
 - ✅ Code formatting (`cargo fmt`)
 - ✅ Linting (`cargo clippy`) 
 - ✅ Tests (`cargo test`)
@@ -46,6 +45,13 @@ This project uses multiple focused workflows that run in parallel for better per
 - 📋 Collects all artifacts
 - 🚀 Creates GitHub release with assets
 - **Runtime**: ~2-3 minutes
+
+### 6. `pr-summary.yml` - PR Analysis
+**Triggers**: PRs from `v2-dev` to `v2`
+- 🤖 AI-generated PR summaries via GitHub Copilot
+- 📊 Changed files analysis and impact assessment
+- 🔍 Risk analysis and testing recommendations
+- **Runtime**: ~1-2 minutes
 
 ## Parallel Execution Flow
 
@@ -84,9 +90,18 @@ Push to v2 branch
 ✅ **Maintainable**: Smaller, focused files  
 ✅ **Artifact Management**: Clean separation of build outputs  
 
+## Workflow Matrix
+
+| Branch/Action | Quality | Build | Installers | Release | PR Summary |
+|---------------|---------|-------|------------|---------|------------|
+| `v2-dev` push | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `v2` push | ✅ | ✅ | ✅ | ✅ | ❌ |
+| `v2-dev → v2` PR | ✅ | ❌ | ❌ | ❌ | ✅ |
+
 ## Monitoring
 
 - **Quality Status**: Shows immediately on PR/push
 - **Build Progress**: Individual status per platform  
 - **Release Status**: Clear pipeline progression
+- **PR Analysis**: Automatic summaries for production PRs
 - **Artifact Downloads**: Available per workflow completion
